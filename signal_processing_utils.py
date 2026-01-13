@@ -357,3 +357,23 @@ def get_data_from_raw_data(tags_to_load, data_tags_to_load, root_data_folder, ti
             participants.extend([t for i in range(temp.shape[0])])
     flat_data["Participants_"] = participants
     return flat_data
+
+
+def load_signal(session_id, signal_name, root_data_folder):
+    flat_data = {}
+    participants = []
+    for t in tags_to_load:
+        if participant_dirs:
+            load_dir = f"{root_data_folder}/{t}/"
+        else:
+            load_dir = f"{root_data_folder}/{t}"
+        if True:
+            for f in data_tags_to_load:
+                if f not in flat_data:
+                    flat_data[f] = []
+                #temp = np.load(f"{load_dir}_{f}.npy", allow_pickle=True, fix_imports=True)
+                temp = np.fromfile(f"{load_dir}{f}", dtype = float)
+                flat_data[f].extend(temp.tolist())
+            participants.extend([t for i in range(temp.shape[0])])
+    flat_data["Participants_"] = participants
+    return flat_data
