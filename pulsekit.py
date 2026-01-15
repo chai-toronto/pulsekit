@@ -1,5 +1,5 @@
 import numpy as np
-from pulsekit.signal_processing_utils import ecg_peaks
+from .signal_processing_utils import ecg_peaks
 #from acq_utils import save_channel_data
 from typing import Tuple, List, Literal, Dict, Optional
 import os

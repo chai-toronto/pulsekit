@@ -1,9 +1,9 @@
-from __signal_processors import physiological_signal
+from signal_processors.base import PhysiologicalSignal
 from dynamic_access import SignalsWrapper
 import copy
 
 
-class session:
+class Session:
     def __init__(self, sessionId, physiologicalSignals):
         self.session_id = sessionId
         self.age = None

@@ -1,5 +1,5 @@
 # universal functions which can be edited to condition signals for fiducial point extraction and quality checks
-from pulsekit.signal_processing_utils import apply_butterworth_filter
+from .signal_processing_utils import apply_butterworth_filter
 
 def preprocess_earbud(data, fs=1000):
     data = apply_butterworth_filter(data, .5, "high", fs=fs) 

@@ -1,7 +1,7 @@
 # functions for extracting fiducial points from each signal type so that the specific functions can be easily found and updated
 import numpy as np
 from scipy.signal import find_peaks
-from pulsekit.signal_processing_utils import extract_fiducial_points
+from .signal_processing_utils import extract_fiducial_points
 
 def extract_ppg(signal_data: np.ndarray, beat_start: int, beat_end: int, fs: int = 1000):
     """

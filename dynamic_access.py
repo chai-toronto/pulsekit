@@ -35,20 +35,26 @@ class SessionsWrapper(DynamicAttributeAccess):
     """Wrapper specifically for sessions to handle session IDs as attributes"""
     
     def __getattr__(self, name):
-        # Handle numeric session IDs by removing leading underscore if present
+        # 1. Try finding the name exactly as typed
+        if name in self._data:
+            session_id = name
+        # 2. If not found, and it starts with '_', try stripping it (e.g. _1 -> 1)
+        elif name.startswith('_') and name[1:] in self._data:
+            session_id = name[1:]
+        else:
+            # If neither works, raise the error
+            raise AttributeError(f"Session '{name}' (mapped to '{name}') not found. Available keys: {list(self._data.keys())}")
 
-        session_id = name
+        # If we reach here, we found a valid session_id
+        session_obj = self._data[session_id]
         
-        print(list(self._data.keys()), session_id)
-
-        if session_id in self._data:
-            session_obj = self._data[session_id]
-            # Wrap the signals dict if it exists
-            if hasattr(session_obj, 'signals') and not isinstance(session_obj.signals, SignalsWrapper):
-                session_obj.signals = SignalsWrapper(session_obj.signals._data if hasattr(session_obj.signals, '_data') else session_obj.signals)
-            return session_obj
-        raise AttributeError(f"Session '{name}' (mapped to '{session_id}') not found")
-
+        # Wrap the signals dict if it exists (Auto-upgrade to SignalsWrapper)
+        if hasattr(session_obj, 'signals') and not isinstance(session_obj.signals, SignalsWrapper):
+            # Handle case where .signals might already be a wrapper or a raw dict
+            raw_signals = session_obj.signals._data if hasattr(session_obj.signals, '_data') else session_obj.signals
+            session_obj.signals = SignalsWrapper(raw_signals)
+            
+        return session_obj
 
 class SignalsWrapper(DynamicAttributeAccess):
     """Wrapper specifically for signals to handle signal names as attributes"""

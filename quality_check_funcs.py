@@ -1,6 +1,6 @@
 # Quality checks for each signal type so that the specific functions can be easily found and updated
 import numpy as np
-from pulsekit.signal_processing_utils import apply_butterworth_filter, extract_fiducial_points
+from .signal_processing_utils import apply_butterworth_filter, extract_fiducial_points
 from scipy.stats import kurtosis
 
 def check_earbud(earbud_window, **kwargs):

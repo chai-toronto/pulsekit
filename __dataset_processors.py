@@ -1,8 +1,8 @@
-from __session_processors import session
+from __session_processors import Session
 from dynamic_access import SessionsWrapper
 
 
-class dataset:
+class Dataset:
     def __init__(self, datasetName, sessionIds, signals, data_directory):
         self.datasetName = datasetName
         self.sessionIds = sessionIds
@@ -10,7 +10,7 @@ class dataset:
         self.data_directory = data_directory
 
         self.sessions = SessionsWrapper({
-            sid: session(sid, signals) for sid in sessionIds
+            sid: Session(sid, signals) for sid in sessionIds
         })
 
 
