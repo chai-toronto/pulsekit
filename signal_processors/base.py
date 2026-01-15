@@ -5,36 +5,59 @@ from typing import Dict, Any, Optional
 class PhysiologicalSignal:
     """Base class for physiological signals."""
 
-    def __init__(self, name, sampling_rate):
+    def __init__(self, name, sampling_rate, session_dir=None):
         self.name = name
         self.sampling_rate = sampling_rate
         self.peaks = []
-        self.data = None
+        self._data = None
+        self.preprocessed_data = None
+        self.session_dir = session_dir
         self.is_loaded = False
+    
+    @property
+    def data(self):
+        """
+        The magic property. Accessing .data triggers this function.
+        It ensures data is loaded before returning it.
+        """
+        if not self.is_loaded:
+            self.load_data()    
+        return self._data
 
-    def load_data(self, session_id, signal_name, root_data_directory):
+    @data.setter
+    def data(self, value):
+        """Allows you to manually set .data = some_array if needed"""
+        self._data = value
+        self.is_loaded = (value is not None)
+
+    def load_data(self):
         """
         Default loader for binary files. 
         Subclasses (like Audio) can override this if they use .wav or .csv
         """
-        load_dir = os.path.join(root_data_directory, session_id, signal_name)
+        load_dir = os.path.join(self.session_dir, self.name)
         if os.path.exists(load_dir):
-            self.data = np.fromfile(load_dir, dtype=float)
+            self._data = np.fromfile(load_dir, dtype=float)
             self.is_loaded = True
         else:
             print(f"Warning: File not found at {load_dir}")
+
+    def clear_data(self):
+        """Frees memory by dropping the raw signal array."""
+        self.data = None
+        self.is_loaded = False
 
     def preprocess(self):
         """
         Base preprocess does nothing. 
         Subclasses should call super().preprocess() if needed.
         """
-        if not self.is_loaded:
-            raise ValueError(f"Cannot preprocess {self.name}: Data not loaded.")
         pass
 
     def get_data(self):
-        return self.data
+        if not self.is_loaded:
+            self.load_data()
+        return self._data
 
     def get_sampling_rate(self):
         return self.sampling_rate
@@ -56,13 +79,20 @@ class PhysiologicalSignal:
     def get_quality_mask(self):
         """Placeholder method for getting quality mask."""
         pass
-
-    def analyze_beat(self, beat_start: int, beat_end: int) -> Dict[str, Any]:
+    
+    def extract_fiducials(self, start_index, end_index):
         """
-        Placeholder for beat-by-beat analysis.
-        Should return a dictionary with fiducials and 'quality_check_passed'.
+        Placeholder. Subclasses must implement this.
+        Returns a dictionary: {'fiducial_name': index, ...}
         """
-        return {"quality_check_passed": False}
+        return {}
+    
+    def check_quality(self, start_index, end_index, fiducials):
+        """
+        Returns True/False. 
+        Subclasses implement specific logic (e.g. valid amplitude, SNR).
+        """
+        return True
 
 
 

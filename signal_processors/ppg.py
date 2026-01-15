@@ -1,84 +1,84 @@
+from .base import PhysiologicalSignal
 from .signal_processing_utils import apply_butterworth_filter, extract_fiducial_points
 from scipy.signal import find_peaks
 import numpy as np
-from scipy.stats import kurtosis
-from typing import Dict, Any
-from .base import PhysiologicalSignal
 
 class PPG(PhysiologicalSignal):
     def preprocess(self):
         super().preprocess()
-        # Logic from: preprocess_ppg
-        self.data = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
-        self.data = apply_butterworth_filter(self.data, 15, "low", fs=self.sampling_rate)
+        processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
+        return apply_butterworth_filter(processed, 15, "low", fs=self.sampling_rate)
 
-    def analyze_beat(self, beat_start: int, beat_end: int) -> Dict[str, Any]:
-        # 1. Extraction Logic from: extract_ppg
-        # ---------------------------------------------------------
-        search_window_end = min(len(self.data), beat_end + 500)
-        clip = self.data[beat_start:search_window_end]
+    def extract_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+
+        # Safety for edge of signal
+        search_window_end = min(len(preprocessed), beat_end + 500)
+        clip = preprocessed[beat_start:search_window_end]
         
-        # Flip and find feet
+        # 1. Find Feet (Flip signal)
         flipped_clip = -clip
         flipped_mean = np.mean(flipped_clip)
         feet, _ = find_peaks(flipped_clip, height=flipped_mean, distance=200)
         
         if len(feet) < 2:
-            return {"quality_check_passed": False}
+            return {} # Failed to find cycle boundaries
 
         foot1 = feet[0]
         foot2 = feet[1]
         
-        # Find systolic peak
-        head_idx = np.argmax(self.data[beat_start + foot1 : beat_start + foot2])
+        # 2. Find Systolic Peak
+        head_idx = np.argmax(preprocessed[beat_start + foot1 : beat_start + foot2])
         
-        # Derivative based extraction
+        # 3. Derivative Analysis for Morphological Points (a, b, c...)
         segment_start_idx = max(0, beat_start + foot1 - 200)
         segment_end_idx = beat_start + foot2
-        segment = self.data[segment_start_idx : segment_end_idx]
+        segment = preprocessed[segment_start_idx : segment_end_idx]
 
         ppg_derivative = np.diff(segment)
         ppg_second_deriv = np.diff(ppg_derivative)
         
-        # Find 'a' peak on second derivative
-        # TODO: Add safety check if ppg_second_deriv is empty
         if len(ppg_second_deriv) == 0:
-             return {"quality_check_passed": False}
-             
+             return {}
+
         a_peak_rel = np.argmax(ppg_second_deriv)
         points = extract_fiducial_points(ppg_second_deriv, c_peak=a_peak_rel)
 
-        results = {
-            "peak": beat_start + foot1 + head_idx,
-            "foot": beat_start + foot1,
-            "foot_next": beat_start + foot2,
-            # Map relative points back to global indices
-            "a": points[0] + segment_start_idx,
-            "b": points[1] + segment_start_idx,
-            "c": points[2] + segment_start_idx,
-            "d": points[3] + segment_start_idx,
-            "e": points[4] + segment_start_idx,
-            "f": points[5] + segment_start_idx,
-            "z": points[6] + segment_start_idx,
-            "q": points[7] + segment_start_idx,
-            "g": points[8] + segment_start_idx
+        # Map relative points back to global indices
+        return {
+            f"{self.name}_peak": beat_start + foot1 + head_idx,
+            f"{self.name}_foot": beat_start + foot1,
+            f"{self.name}_foot_next": beat_start + foot2,
+            f"{self.name}_a": points[0] + segment_start_idx,
+            f"{self.name}_b": points[1] + segment_start_idx,
+            f"{self.name}_c": points[2] + segment_start_idx,
+            f"{self.name}_d": points[3] + segment_start_idx,
+            f"{self.name}_e": points[4] + segment_start_idx,
+            f"{self.name}_f": points[5] + segment_start_idx,
+            f"{self.name}_z": points[6] + segment_start_idx,
+            f"{self.name}_q": points[7] + segment_start_idx,
+            f"{self.name}_g": points[8] + segment_start_idx
         }
 
-        # 2. Quality Check Logic from: check_ppg & process_signal
-        # ---------------------------------------------------------
-        # Define QC window (foot to foot_next)
-        qc_start = results['foot']
-        qc_end = results['foot_next']
-        qc_window = self.data[qc_start:qc_end]
+    def check_quality(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
 
-        # Specific PPG QC math
-        # Note: Recalculating derivatives here as per original check_ppg logic
+        if not fiducials or 'foot' not in fiducials or 'foot_next' not in fiducials:
+            return False
+
+        # Define QC window (foot to foot_next)
+        qc_start = fiducials['foot']
+        qc_end = fiducials['foot_next']
+        qc_window = preprocessed[qc_start:qc_end]
+
+        if len(qc_window) == 0: 
+            return False
+
+        # Re-calculate derivatives specific to QC logic
         w_diff = np.diff(qc_window, prepend=qc_window[0])
         w_diff2 = np.diff(w_diff, prepend=w_diff[0])
         w_filtered = apply_butterworth_filter(w_diff2, 25, "low", fs=self.sampling_rate)
 
         try:
-            # Re-extract points on this specific QC window to verify morphology
+            # Verify morphology
             a_peak_qc = np.argmax(w_filtered[:int(w_filtered.shape[0]/2)])
             qc_points = extract_fiducial_points(w_filtered, c_peak=a_peak_qc)
             point_amps = [w_filtered[x] if x < len(w_filtered) else 0 for x in qc_points]
@@ -90,9 +90,6 @@ class PPG(PhysiologicalSignal):
                 (np.max(w_filtered[qc_points[2]:]) - np.min(w_filtered[qc_points[2]:])),
                 qc_points[2] - qc_points[1] < 150,
             ]
-            passed = all(tests)
+            return all(tests)
         except Exception:
-            passed = False
-
-        results["quality_check_passed"] = passed
-        return results
+            return False

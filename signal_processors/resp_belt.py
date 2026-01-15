@@ -7,16 +7,12 @@ from .base import PhysiologicalSignal
 class RespirationBelt(PhysiologicalSignal):
     def preprocess(self):
         super().preprocess()
-        # Logic from: preprocess_respiration_belt
-        self.data = apply_butterworth_filter(self.data, 0.1, "high", fs=self.sampling_rate)
-        self.data = apply_butterworth_filter(self.data, 0.5, "low", fs=self.sampling_rate)
+        processed = apply_butterworth_filter(self.data, 0.1, "high", fs=self.sampling_rate)
+        return apply_butterworth_filter(processed, 0.5, "low", fs=self.sampling_rate)
 
-    def analyze_beat(self, beat_start: int, beat_end: int) -> Dict[str, Any]:
-        # Extraction Logic from: extract_respiration_belt
-        fiducials = {"RI": "N/A"} # Placeholder
-        
-        # QC Logic from: check_respiration_belt
-        window = self.data[beat_start:beat_end]
-        passed = (np.std(window) > 0.01)
+    def extract_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+        return {f"{self.name}_RI": "N/A"}
 
-        return {**fiducials, "quality_check_passed": passed}
+    def check_quality(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
+        window = preprocessed[beat_start:beat_end]
+        return (np.std(window) > 0.01)

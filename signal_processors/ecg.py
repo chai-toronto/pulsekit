@@ -3,33 +3,48 @@ import numpy as np
 from scipy.stats import kurtosis
 from typing import Dict, Any
 from .base import PhysiologicalSignal
+from scipy.signal import find_peaks
 
 class ECG(PhysiologicalSignal):
     def preprocess(self):
         super().preprocess()
-        self.data = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
-        self.data = apply_butterworth_filter(self.data, 40, "low", fs=self.sampling_rate)
+        processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
+        return apply_butterworth_filter(processed, 40, "low", fs=self.sampling_rate)
 
-    def analyze_beat(self, beat_start: int, beat_end: int) -> Dict[str, Any]:
-        """
-        Runs extraction (if defined) and quality check for ECG.
-        """
-        # TODO: The provided code snippet did not contain the implementation for 'extract_ecg'.
-        # Using placeholder logic or assuming peaks are already found via segmentation.
-        fiducials = {} 
+    def find_peaks(self):
+        ecg_signal = self.data
+        detection_signal = apply_butterworth_filter(ecg_signal, 5, "high", fs=self.sampling_rate)
+        detection_signal = apply_butterworth_filter(detection_signal, 15, "low", fs=self.sampling_rate)
+        squared_signal = detection_signal ** 2
+        height_req = np.mean(squared_signal)
+        rough_peaks, _ = find_peaks(squared_signal, distance=400, height=height_req)
+        true_peaks = []
+        search_window = int(0.05 * self.sampling_rate) # +/- 50ms window 
         
-        # QC Logic from: check_ecg
-        # Note: ECG QC usually runs on the whole window provided
-        window = self.data[beat_start:beat_end]
-        
+        for p in rough_peaks:
+            start = max(0, p - search_window)
+            end = min(len(ecg_signal), p + search_window)
+            search_slice = ecg_signal[start:end]
+            local_max_idx = np.argmax(search_slice)
+            true_peak_idx = start + local_max_idx
+            true_peaks.append(true_peak_idx)
+            
+        return np.array(true_peaks)
+
+    def extract_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+        # Currently placeholder as per your old logic
+        return {}
+
+    def check_quality(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
+        window = preprocessed[beat_start:beat_end]
+        if len(window) == 0: return False
+
         try:
             tests = [
-                (np.std(window) > 0.001), # sensor zero check
+                (np.std(window) > 0.001), 
                 (np.max(window[:100]) + np.max(window[-100:])) / 2 > np.mean(window),
                 (kurtosis(window, fisher=False) > 3.5)
             ]
-            passed = all(tests)
+            return all(tests)
         except Exception:
-            passed = False
-
-        return {**fiducials, "quality_check_passed": passed}
+            return False

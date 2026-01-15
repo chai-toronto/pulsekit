@@ -1,7 +1,7 @@
-from __dataset_processors import Dataset
-from __session_processors import Session
+from dataset_processors import Dataset
+from session_processors import Session
 from signal_processors.base import PhysiologicalSignal
-from __feature_processors import feature
+from feature_processors import feature
 import numpy as np
 
 
