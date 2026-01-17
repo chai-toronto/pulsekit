@@ -16,6 +16,7 @@ class Session:
         self.weight = None
         self.gender = None
         self.physiologicalSignals = physiologicalSignals
+        self.participant_id = None
 
         # creating a session-specific copy of each signal object and passing in the directory
         signals_dict = {
