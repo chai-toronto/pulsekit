@@ -8,7 +8,7 @@ class Earbud(PhysiologicalSignal):
         processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 15, "low", fs=self.sampling_rate)
 
-    def extract_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+    def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
 
         theoretical_min = int(0.1 * 0.3 * self.sampling_rate) - 10 
         theoretical_max = 500 
@@ -41,7 +41,7 @@ class Earbud(PhysiologicalSignal):
             f"{self.name}_g": points[8] + segment_start_idx
         }
 
-    def check_quality(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
+    def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
         if not fiducials or 'a' not in fiducials:
             return False
 
@@ -71,3 +71,24 @@ class Earbud(PhysiologicalSignal):
             return all(tests)
         except Exception:
             return False
+
+    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
+        # basic placeholder to ensure window has data that is not 60Hz line noise
+        sig = preprocessed[window_start:window_end]
+        if np.ptp(sig) < 0.001: 
+            return False 
+        fft_mags = np.abs(np.fft.rfft(sig))
+        hz_60_bin = int(60 * len(sig) / self.sampling_rate)
+        if fft_mags[hz_60_bin] > (np.mean(fft_mags) * 10):
+            return False
+        return True
+    
+    def extract_window_fiducials(self, preprocessed, window_start: int, window_end: int):
+        # basic placeholder to return stats in the window
+        window_data = preprocessed[window_start:window_end]
+        return {
+            f"{self.name}_mean": np.mean(window_data),
+            f"{self.name}_std": np.std(window_data),
+            f"{self.name}_max": np.max(window_data),
+            f"{self.name}_min": np.min(window_data)
+        }

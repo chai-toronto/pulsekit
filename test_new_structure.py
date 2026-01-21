@@ -16,7 +16,7 @@ test_dataset = Dataset(
         PPG(name="PPG_Wrist_downsample", sampling_rate=1000),
         Stethoscope(name="Digital_Stethoscope_downsample", sampling_rate=1000),
         Earbud(name="Earbud_Left_downsample", sampling_rate=1000),
-        Earbud(name="Earbud_Left_downsample", sampling_rate=1000),
+        Earbud(name="Earbud_Right_downsample", sampling_rate=1000),
         Accelerometer(name="AccZ_downsample", sampling_rate=1000),
         RespirationBelt(name="Respiration_Belt_downsample", sampling_rate=1000)
     ],
@@ -26,10 +26,11 @@ test_dataset = Dataset(
 print(f"Session 1 Loaded. ECG Shape: {test_dataset.sessions._1.signals.ECG_downsample.data.shape}")
 print(f"Session 3 Loaded. PPG Finger Shape: {test_dataset.sessions._3.signals.PPG_Finger_downsample.data.shape}")
 
-test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
+#test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
+test_dataset.get_fixed_windows(length=15)
 
-print(f"Session 1 Cardiac Cycles: {test_dataset.sessions._1.cardiac_cycles.shape}")
-print(f"Session 3 Cardiac Cycles: {test_dataset.sessions._3.cardiac_cycles[:5, :]}")
+print(f"Session 1 Signal Windows: {test_dataset.sessions._1.windows.shape}")
+print(f"Session 3 Signal Windows: {test_dataset.sessions._3.windows[:5, :]}")
 
 test_dataset.process_signals(signal_list=[
     "PPG_Finger_downsample",
@@ -37,7 +38,5 @@ test_dataset.process_signals(signal_list=[
     "PPG_Wrist_downsample",
     "Digital_Stethoscope_downsample",
     "Earbud_Left_downsample",
-    "Earbud_Right_downsample"])
-
-fid_1 = pd.read_csv(os.path.join("test_data", "1", "fiducials.csv"))
-print(fid_1.head())
+    "Earbud_Right_downsample"
+    ])

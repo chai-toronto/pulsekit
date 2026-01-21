@@ -9,6 +9,7 @@ class Dataset:
         self.sessionIds = sessionIds
         self.signals = signals
         self.data_directory = data_directory
+        self.windowing_type = None  # 'cardiac_cycles' or 'fixed_windows'
 
         self.sessions = SessionsWrapper({
             sid: Session(sid, signals, data_directory) for sid in sessionIds
@@ -33,23 +34,44 @@ class Dataset:
     def get_activity_masks(self, *args, **kwargs):
         pass    
     
+    # Run one of the following windowing methods before processing signals
+    # can be cardiac cycles or fixed windows
+
     def get_cardiac_cycles(self, *args, **kwargs):
         """
         Iterates through all sessions and triggers cardiac cycle segmentation.
         
         Accepts any arguments required by the underlying session.detect_cycles() method.
+
+        Stored in session objects as session.windows
         
         Common Kwargs:
             reference_signal_name (str): The name of the signal to use (default: "ECG_downsample").
             method (str): The algorithm to use (default: "r_peak").
-        """
-        ref_sig = kwargs.get('reference_signal_name', 'Default Signal')
-        
+        """        
+        self.windowing_type = 'cardiac_cycles'
         for session in self.sessions.values():
             try:
                 session.detect_cycles(*args, **kwargs)
             except Exception as e:
                 print(f"Session {session.session_id}: Skipping cycle detection. Reason: {e}")
+    
+    def get_fixed_windows(self, length=10, **kwargs):
+        """
+        used instead of get cardiac cycles for fixed windowing approaches such as deep learning models
+        will store indices in session.windows
+        
+        :param self: Dataset object
+        :param length: int, length of each window in seconds
+        :param kwargs: Description
+        """
+        self.windowing_type = 'fixed_windows'
+        for session in self.sessions.values():
+            try:
+                session.get_fixed_windows(length=length, **kwargs)
+            except Exception as e:
+                print(f"Session {session.session_id}: Skipping fixed windowing. Reason: {e}")
+
 
     def annotate_cardiac_cycles_with_activities(self, *args, **kwargs):
         pass
@@ -74,43 +96,41 @@ class Dataset:
         Traverses sessions, ensures cycles exist, processes signals, 
         and updates the fiducials CSV.
         """
+        if self.windowing_type is None:
+            raise RuntimeError("Windowing method not set. Please run get_cardiac_cycles() or get_fixed_windows() first.")
     
         for session in self.sessions.values():
-            # if cardiac cycles are not detected yet, do it 
-            if session.cardiac_cycles is None or len(session.cardiac_cycles) == 0:
-                try:
-                    session.detect_cycles(reference_signal_name="ECG_downsample") 
-                except Exception as e:
-                    print(f"  > Skipping session {session.session_id}: {e}")
-                    continue
+            if session.windows is None or len(session.windows) == 0:
+                print(f"Skipping session {session.session_id}")
+                continue
             
             # create a list to hold results for all cycles in this session
             session_results = []
-            for i, (start, end) in enumerate(session.cardiac_cycles):
+            for i, (start, end) in enumerate(session.windows):
                 session_results.append({
-                    "cycle_id": i,
-                    "beat_start": start,
-                    "beat_end": end
+                    "window_id": i,
+                    "start": start,
+                    "end": end
                 })
 
             for signal_name in signal_list:
-                try:
-                    signal = session.signals[signal_name]
-                    if not signal:
-                        print(f"  > Signal {signal_name} not found in session.")
-                        continue
+                #try:
+                signal = session.signals[signal_name]
+                if not signal:
+                    print(f"Signal {signal_name} not found in session.")
+                    continue
+                
+                preprocessed_signal = signal.preprocess()
+
+                for i, (start, end) in enumerate(session.windows):
+                    fiducials = signal.extract_fiducials(preprocessed_signal, start, end, self.windowing_type)
+                    is_good = signal.check_quality(preprocessed_signal, start, end, fiducials, self.windowing_type)
                     
-                    preprocessed_signal = signal.preprocess()
+                    session_results[i].update(fiducials)
+                    session_results[i][f"{signal_name}_quality"] = is_good
 
-                    for i, (start, end) in enumerate(session.cardiac_cycles):
-                        fiducials = signal.extract_fiducials(preprocessed_signal, start, end)
-                        is_good = signal.check_quality(preprocessed_signal, start, end, fiducials)
-                        
-                        session_results[i].update(fiducials)
-                        session_results[i][f"{signal_name}_quality"] = is_good
-
-                except Exception as e:
-                    print(f"  > Error processing {signal_name}: {e}")
+                #except Exception as e:
+                #    print(f"Error processing {signal_name}: {e}")
 
             # Save results back to session fiducials CSV   
             if session_results:
