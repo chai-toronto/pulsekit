@@ -59,23 +59,24 @@ class PPG(PhysiologicalSignal):
         }
 
     def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
-        if not fiducials or 'foot' not in fiducials or 'foot_next' not in fiducials:
+        if not fiducials or f'{self.name}_foot' not in fiducials or f'{self.name}_foot_next' not in fiducials:
             return False
 
         # Define QC window (foot to foot_next)
-        qc_start = fiducials['foot']
-        qc_end = fiducials['foot_next']
+        qc_start = fiducials[f'{self.name}_foot']
+        qc_end = fiducials[f'{self.name}_foot_next']
         qc_window = preprocessed[qc_start:qc_end]
 
         if len(qc_window) == 0: 
+            print("QC window length 0")
             return False
 
-        # Re-calculate derivatives specific to QC logic
-        w_diff = np.diff(qc_window, prepend=qc_window[0])
-        w_diff2 = np.diff(w_diff, prepend=w_diff[0])
-        w_filtered = apply_butterworth_filter(w_diff2, 25, "low", fs=self.sampling_rate)
-
         try:
+            # Re-calculate derivatives specific to QC logic
+            w_diff = np.diff(qc_window, prepend=qc_window[0])
+            w_diff2 = np.diff(w_diff, prepend=w_diff[0])
+            w_filtered = apply_butterworth_filter(w_diff2, 25, "low", fs=self.sampling_rate)
+
             # Verify morphology
             a_peak_qc = np.argmax(w_filtered[:int(w_filtered.shape[0]/2)])
             qc_points = extract_fiducial_points(w_filtered, c_peak=a_peak_qc)
@@ -89,8 +90,28 @@ class PPG(PhysiologicalSignal):
                 qc_points[2] - qc_points[1] < 150,
             ]
             return all(tests)
-        except Exception:
+        except Exception as e:
             return False
+        
+    def check_ppg(self, window, **kwargs):
+        window = np.diff(window, prepend=window[0])
+        window = np.diff(window, prepend=window[0])
+        window = apply_butterworth_filter(window, 25, "low", 1000)
+
+        a_peak = np.argmax(window[:int(window.shape[0]/2)])
+        fiducial_points = extract_fiducial_points(window, anchor=a_peak)
+        fiducial_point_amplitudes = [window[x] if x < len(window) else 0 for x in fiducial_points]
+        try:
+            tests = [
+                np.argmax(fiducial_point_amplitudes) in [0,2],
+                np.argmin(fiducial_point_amplitudes) == 1,
+                np.max(window[:fiducial_points[2]])-np.min(window[:fiducial_points[2]])*.5 > np.max(window[fiducial_points[2]:])-np.min(window[fiducial_points[2]:]),
+                fiducial_points[2]-fiducial_points[1] < 150,
+            ]
+        except Exception as e:
+            tests = [False, False, False, False]
+
+        return all(tests)
         
     def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
         # basic placeholder to ensure window has data that is not 60Hz line noise

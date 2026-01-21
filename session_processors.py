@@ -46,11 +46,11 @@ class Session:
         return NotImplementedError("This method should be implemented in subclasses.")
     
     def load_session(self, *args, **kwargs):
-        demographics = self.get_participant_demographics(demographics_fp=kwargs.get('demographics_fp', None))
-        self.height = demographics.get('height', None)
-        self.age = demographics.get('age', None)
-        self.weight = demographics.get('weight', None)
-        self.gender = demographics.get('gender', None)
+        #demographics = self.get_participant_demographics(demographics_fp=kwargs.get('demographics_fp', None))
+        #self.height = demographics.get('height', None)
+        #self.age = demographics.get('age', None)
+        #self.weight = demographics.get('weight', None)
+        #self.gender = demographics.get('gender', None)
 
         for signal in self.signals.values():
             signal.load_data()

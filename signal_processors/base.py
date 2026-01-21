@@ -80,20 +80,6 @@ class PhysiologicalSignal:
         """Placeholder method for getting quality mask."""
         pass
     
-    def extract_fiducials(self, start_index, end_index):
-        """
-        Placeholder. Subclasses must implement this.
-        Returns a dictionary: {'fiducial_name': index, ...}
-        """
-        return {}
-    
-    def check_quality(self, start_index, end_index, fiducials):
-        """
-        Returns True/False. 
-        Subclasses implement specific logic (e.g. valid amplitude, SNR).
-        """
-        return True
-    
     # routes to specialized methods based on windowing type
     # specialized methods are implemented in subclasses
     def extract_fiducials(self, preprocessed, beat_start: int, beat_end: int, windowing_type: str):

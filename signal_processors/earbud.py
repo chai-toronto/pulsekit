@@ -42,11 +42,11 @@ class Earbud(PhysiologicalSignal):
         }
 
     def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
-        if not fiducials or 'a' not in fiducials:
+        if not fiducials or f'{self.name}_a' not in fiducials:
             return False
 
         # Define QC window: Peak - 300 to Peak + 700
-        peak_loc = fiducials['a']
+        peak_loc = fiducials[f'{self.name}_a']
         qc_start = max(0, peak_loc - 300)
         qc_end = min(len(preprocessed), peak_loc + 700)
         qc_window = preprocessed[qc_start:qc_end]

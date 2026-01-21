@@ -23,20 +23,29 @@ test_dataset = Dataset(
     data_directory="test_data"
 )
 
-print(f"Session 1 Loaded. ECG Shape: {test_dataset.sessions._1.signals.ECG_downsample.data.shape}")
-print(f"Session 3 Loaded. PPG Finger Shape: {test_dataset.sessions._3.signals.PPG_Finger_downsample.data.shape}")
+#print(f"Session 1 Loaded. ECG Shape: {test_dataset.sessions._1.signals.ECG_downsample.data.shape}")
+#print(f"Session 3 Loaded. PPG Finger Shape: {test_dataset.sessions._3.signals.PPG_Finger_downsample.data.shape}")
 
-#test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
-test_dataset.get_fixed_windows(length=15)
+test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
 
-print(f"Session 1 Signal Windows: {test_dataset.sessions._1.windows.shape}")
-print(f"Session 3 Signal Windows: {test_dataset.sessions._3.windows[:5, :]}")
+#print(f"Session 1 Signal Windows: {test_dataset.sessions._1.windows.shape}")
+
+print("Windowing type:", test_dataset.windowing_type)
 
 test_dataset.process_signals(signal_list=[
+    "ECG_downsample",
     "PPG_Finger_downsample",
     "PPG_Ear_downsample",
-    "PPG_Wrist_downsample",
-    "Digital_Stethoscope_downsample",
+    #"PPG_Wrist_downsample",
+    #"Digital_Stethoscope_downsample",
     "Earbud_Left_downsample",
-    "Earbud_Right_downsample"
+    #"Earbud_Right_downsample"
     ])
+
+features={
+    "PWA": ["PPG_Finger_downsample", "PPG_Ear_downsample"],
+    "PAT": ["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"]
+}
+
+print("Computing features...")
+test_dataset.compute_features(feature_map=features)

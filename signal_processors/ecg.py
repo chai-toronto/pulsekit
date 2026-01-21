@@ -32,8 +32,7 @@ class ECG(PhysiologicalSignal):
         return np.array(true_peaks)
 
     def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
-        # Currently placeholder as per your old logic
-        return {}
+        return {f"{self.name}_R_peak": beat_start}
 
     def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
         window = preprocessed[beat_start:beat_end]
@@ -42,7 +41,7 @@ class ECG(PhysiologicalSignal):
         try:
             tests = [
                 (np.std(window) > 0.001), 
-                (np.max(window[:100]) + np.max(window[-100:])) / 2 > np.mean(window),
+                (np.max(window[:100]) + np.max(window[-100:])) / 2 > np.mean(window), 
                 (kurtosis(window, fisher=False) > 3.5)
             ]
             return all(tests)
