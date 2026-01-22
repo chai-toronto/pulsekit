@@ -135,14 +135,6 @@ class Dataset:
                 session.save_fiducials(new_df)
             
             session.unload_session()
-    
-        '''
-        Get features -> list of features and list of associated signals
-        Calculate basic pwa features +on level of dataset, gets fiducials if not gotten
-        This will demonstrate accessing the wave at the point of fiducial timing
-        Basic PAT and PTT across signals
-        Output to features csv which contains session, participant, window_id, feature value
-        '''
 
     def compute_features(self, feature_map: dict):
         """

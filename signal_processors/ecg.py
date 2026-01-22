@@ -7,7 +7,6 @@ from scipy.signal import find_peaks
 
 class ECG(PhysiologicalSignal):
     def preprocess(self):
-        super().preprocess()
         processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 40, "low", fs=self.sampling_rate)
 
@@ -31,11 +30,11 @@ class ECG(PhysiologicalSignal):
             
         return np.array(true_peaks)
 
-    def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
-        return {f"{self.name}_R_peak": beat_start}
+    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
+        return {f"{self.name}_R_peak": window_start}
 
-    def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
-        window = preprocessed[beat_start:beat_end]
+    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
+        window = preprocessed[window_start:window_end]
         if len(window) == 0: return False
 
         try:

@@ -82,20 +82,20 @@ class PhysiologicalSignal:
     
     # routes to specialized methods based on windowing type
     # specialized methods are implemented in subclasses
-    def extract_fiducials(self, preprocessed, beat_start: int, beat_end: int, windowing_type: str):
+    def extract_fiducials(self, preprocessed, window_start: int, window_end: int, windowing_type: str):
         if windowing_type == "cardiac_cycles":
-            return self.extract_cardiac_cycle_fiducials(preprocessed, beat_start, beat_end)
+            return self.extract_cardiac_cycle_fiducials(preprocessed, window_start, window_end)
         elif windowing_type == "fixed_windows":
-            return self.extract_window_fiducials(preprocessed, beat_start, beat_end)
+            return self.extract_window_fiducials(preprocessed, window_start, window_end)
         else:
             raise NotImplementedError(f"Fiducial extraction for windowing type '{windowing_type}' is not implemented.")
 
 
-    def check_quality(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict, windowing_type: str):
+    def check_quality(self, preprocessed, window_start: int, window_end: int, fiducials: dict, windowing_type: str):
         if windowing_type == "cardiac_cycles":
-            return self.check_quality_cardiac_cycle(preprocessed, beat_start, beat_end, fiducials)
+            return self.check_quality_cardiac_cycle(preprocessed, window_start, window_end, fiducials)
         elif windowing_type == "fixed_windows":
-            return self.check_quality_fixed_window(preprocessed, beat_start, beat_end, fiducials)
+            return self.check_quality_fixed_window(preprocessed, window_start, window_end, fiducials)
         else:
             raise NotImplementedError(f"Quality check for windowing type '{windowing_type}' is not implemented.")
 

@@ -5,14 +5,13 @@ import numpy as np
 
 class PPG(PhysiologicalSignal):
     def preprocess(self):
-        super().preprocess()
         processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 15, "low", fs=self.sampling_rate)
 
-    def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
         # Safety for edge of signal
-        search_window_end = min(len(preprocessed), beat_end + 500)
-        clip = preprocessed[beat_start:search_window_end]
+        search_window_end = min(len(preprocessed), window_end + 500)
+        clip = preprocessed[window_start:search_window_end]
         
         # 1. Find Feet (Flip signal)
         flipped_clip = -clip
@@ -26,11 +25,11 @@ class PPG(PhysiologicalSignal):
         foot2 = feet[1]
         
         # 2. Find Systolic Peak
-        head_idx = np.argmax(preprocessed[beat_start + foot1 : beat_start + foot2])
+        head_idx = np.argmax(preprocessed[window_start + foot1 : window_start + foot2])
         
         # 3. Derivative Analysis for Morphological Points (a, b, c...)
-        segment_start_idx = max(0, beat_start + foot1 - 200)
-        segment_end_idx = beat_start + foot2
+        segment_start_idx = max(0, window_start + foot1 - 200)
+        segment_end_idx = window_start + foot2
         segment = preprocessed[segment_start_idx : segment_end_idx]
 
         ppg_derivative = np.diff(segment)
@@ -44,9 +43,9 @@ class PPG(PhysiologicalSignal):
 
         # Map relative points back to global indices
         return {
-            f"{self.name}_peak": beat_start + foot1 + head_idx,
-            f"{self.name}_foot": beat_start + foot1,
-            f"{self.name}_foot_next": beat_start + foot2,
+            f"{self.name}_peak": window_start + foot1 + head_idx,
+            f"{self.name}_foot": window_start + foot1,
+            f"{self.name}_foot_next": window_start + foot2,
             f"{self.name}_a": points[0] + segment_start_idx,
             f"{self.name}_b": points[1] + segment_start_idx,
             f"{self.name}_c": points[2] + segment_start_idx,
@@ -58,7 +57,7 @@ class PPG(PhysiologicalSignal):
             f"{self.name}_g": points[8] + segment_start_idx
         }
 
-    def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
+    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
         if not fiducials or f'{self.name}_foot' not in fiducials or f'{self.name}_foot_next' not in fiducials:
             return False
 

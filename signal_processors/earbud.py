@@ -4,17 +4,16 @@ import numpy as np
 
 class Earbud(PhysiologicalSignal):
     def preprocess(self):
-        super().preprocess()
         processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 15, "low", fs=self.sampling_rate)
 
-    def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
 
         theoretical_min = int(0.1 * 0.3 * self.sampling_rate) - 10 
         theoretical_max = 500 
         
-        win_start = beat_start + theoretical_min
-        win_end = min(beat_start + theoretical_max, len(preprocessed))
+        win_start = window_start + theoretical_min
+        win_end = min(window_start + theoretical_max, len(preprocessed))
         arrival_window = preprocessed[win_start : win_end]
         
         if len(arrival_window) == 0:
@@ -22,8 +21,8 @@ class Earbud(PhysiologicalSignal):
 
         a_peak_global = np.argmax(arrival_window) + win_start
         
-        segment_start_idx = max(0, beat_start - 200)
-        segment_end_idx = min(len(preprocessed), beat_end + 200)
+        segment_start_idx = max(0, window_start - 200)
+        segment_end_idx = min(len(preprocessed), window_end + 200)
         segment = preprocessed[segment_start_idx : segment_end_idx]
         
         anchor_rel = a_peak_global - segment_start_idx
@@ -41,7 +40,7 @@ class Earbud(PhysiologicalSignal):
             f"{self.name}_g": points[8] + segment_start_idx
         }
 
-    def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
+    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
         if not fiducials or f'{self.name}_a' not in fiducials:
             return False
 

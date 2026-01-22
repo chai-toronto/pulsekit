@@ -6,15 +6,14 @@ from .base import PhysiologicalSignal
 
 class RespirationBelt(PhysiologicalSignal):
     def preprocess(self):
-        super().preprocess()
         processed = apply_butterworth_filter(self.data, 0.1, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 0.5, "low", fs=self.sampling_rate)
 
-    def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
+    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
         return {f"{self.name}_RI": "N/A"}
 
-    def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
-        window = preprocessed[beat_start:beat_end]
+    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
+        window = preprocessed[window_start:window_end]
         return (np.std(window) > 0.01)
     
     def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):

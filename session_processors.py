@@ -11,12 +11,14 @@ class Session:
         self.session_id = sessionId
         self.data_directory = data_directory
         self.windows = None
-        self.age = None
-        self.height = None
-        self.weight = None
-        self.gender = None
         self.physiologicalSignals = physiologicalSignals
         self.participant_id = sessionId.split("_")[0]
+        demos = self.get_participant_demographics()
+        
+        self.height = demos.get("Height")
+        self.weight = demos.get("Weight")
+        self.age = demos.get("Age")
+        self.gender = demos.get("Gender")
 
         # creating a session-specific copy of each signal object and passing in the directory
         signals_dict = {
@@ -27,17 +29,28 @@ class Session:
         self.signals = SignalsWrapper(signals_dict)
         
 
-    def get_participant_demographics(self, demographics_fp):
-        """
-        placeholder method for getting participant demographics.
-        """
-        load_dir = os.path.join(self.data_directory, demographics_fp)
-        if os.path.exists(load_dir):
-            demographics = pd.read_csv(load_dir)
-            # TODO: Implement logic to extract demographics for this session
-        else:
-            print(f"Warning: File not found at {load_dir}")
-        return {"height": 170, "age": 30, "weight": 70, "gender": "unknown"}
+    def get_participant_demographics(self):
+        load_dir = os.path.join(self.data_directory, "demographics.csv")
+        defaults = {"Height": None, "Weight": None, "Age": None, "Gender": None}
+
+        if not os.path.exists(load_dir):
+            print(f"Warning: Demographics file not found at {load_dir}")
+            return defaults
+
+        try:
+            df = pd.read_csv(load_dir)
+            match_mask = df['Participant'].astype(str).str.lower().str.replace("rp", "").str.strip() == self.participant_id
+            participant_row = df[match_mask]
+            
+            if not participant_row.empty:
+                return participant_row.squeeze().to_dict()
+            else:
+                print(f"Warning: Participant {self.participant_id} not found in demographics file.")
+                return defaults
+
+        except Exception as e:
+            print(f"Error reading demographics: {e}")
+            return defaults
 
     def get_signal(self, name):
         return self.signals.get(name, None)
@@ -46,12 +59,6 @@ class Session:
         return NotImplementedError("This method should be implemented in subclasses.")
     
     def load_session(self, *args, **kwargs):
-        #demographics = self.get_participant_demographics(demographics_fp=kwargs.get('demographics_fp', None))
-        #self.height = demographics.get('height', None)
-        #self.age = demographics.get('age', None)
-        #self.weight = demographics.get('weight', None)
-        #self.gender = demographics.get('gender', None)
-
         for signal in self.signals.values():
             signal.load_data()
     

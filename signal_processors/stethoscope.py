@@ -5,12 +5,11 @@ import numpy as np
 
 class Stethoscope(PhysiologicalSignal):
     def preprocess(self):
-        super().preprocess()
         processed = apply_butterworth_filter(self.data, 40, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 100, "low", fs=self.sampling_rate)
 
-    def extract_cardiac_cycle_fiducials(self, preprocessed, beat_start: int, beat_end: int):
-        pcg_segment = preprocessed[beat_start + 10 : beat_start + 150]
+    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
+        pcg_segment = preprocessed[window_start + 10 : window_start + 150]
         
         if len(pcg_segment) == 0:
              return {}
@@ -19,12 +18,12 @@ class Stethoscope(PhysiologicalSignal):
         pcg_peaks, _ = find_peaks(pcg_segment, distance=30, height=pcg_height_req)
         
         if len(pcg_peaks) > 0:
-            return {f"{self.name}_s1": beat_start + 10 + pcg_peaks[0]}
+            return {f"{self.name}_s1": window_start + 10 + pcg_peaks[0]}
         
         return {}
 
-    def check_quality_cardiac_cycle(self, preprocessed, beat_start: int, beat_end: int, fiducials: dict):
-        window = preprocessed[beat_start:beat_end]
+    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
+        window = preprocessed[window_start:window_end]
         # Basic check: is there signal variation?
         return (np.std(window) > 0.001)
     
