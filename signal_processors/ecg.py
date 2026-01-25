@@ -2,7 +2,7 @@ from .signal_processing_utils import apply_butterworth_filter
 import numpy as np
 from scipy.stats import kurtosis
 from typing import Dict, Any
-from .base import PhysiologicalSignal
+from .base_signal import PhysiologicalSignal
 from scipy.signal import find_peaks
 
 class ECG(PhysiologicalSignal):

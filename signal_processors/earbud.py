@@ -1,4 +1,4 @@
-from .base import PhysiologicalSignal
+from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import apply_butterworth_filter, extract_fiducial_points
 import numpy as np
 

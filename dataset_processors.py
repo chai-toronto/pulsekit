@@ -3,6 +3,7 @@ from dynamic_access import SessionsWrapper
 import pandas as pd
 import os
 import numpy as np
+from feature_processors import Feature, PAT, PWA
 
 class Dataset:
     def __init__(self, datasetName, sessionIds, signals, data_directory):
@@ -136,12 +137,10 @@ class Dataset:
             
             session.unload_session()
 
-    def compute_features(self, feature_map: dict):
+    def compute_features(self, features: list[Feature]):
         """
         Orchestrates feature calculation.
-        Features can be one of pwa, pat, ptt.
-        pat must contain ecg as one of the signals.
-        ptt must contain digital stethoscope as one of the signals.
+        Necessary signals and windowing type are validated in Feature subclasses.
         """
         all_session_features = []
 
@@ -160,18 +159,12 @@ class Dataset:
                     "window_id": row_data['window_id']
                 }
 
-                for func, params in feature_map.items():
-                    if func.lower() == "pwa":
-                        pwa = self.compute_pwa_features(session, row_data, signal_names=params)
-                        row.update(pwa)
-                    elif func.lower() == "pat":
-                        features = self.compute_PAT(session, row_data, signal_names=params)
-                        row.update(features)
-                    elif func.lower() == "ptt":
-                        features = self.compute_PTT(session, row_data, signal_names=params)
-                        row.update(features)
-                    else:
-                        raise NotImplementedError(f"Feature computation '{func}' is not implemented.")
+                for feature in features:
+                    try:
+                        feature_results = feature.compute(session, row_data)
+                        row.update(feature_results)
+                    except Exception as e:
+                        print(f"Error computing {feature.NAME} for session {session.session_id}, window {row_data['window_id']}: {e}")
                 all_session_features.append(row)
 
             session.unload_session()
@@ -179,81 +172,3 @@ class Dataset:
         feature_df = pd.DataFrame(all_session_features)
         save_loc = os.path.join(self.data_directory, "features.csv")
         feature_df.to_csv(save_loc, index=False)
-    
-    def compute_pwa_features(self, session, row_data, signal_names):
-        """
-        Calculates Pulse Wave Analysis features from fiducials already in segments.csv
-        Can only be run on cardiac cycle windowed data.
-
-        """
-        if self.windowing_type != 'cardiac_cycles':
-            raise RuntimeError("PWA features can only be computed on cardiac cycle windowed data.")
-        
-        results = {}
-        for signal_name in signal_names:
-            try:
-                if row_data[f"{signal_name}_quality"] == False:
-                    results.update({
-                    f"{signal_name}_amp": np.nan,
-                    f"{signal_name}_amp_norm": np.nan,
-                    f"{signal_name}_rise_time": np.nan
-                    })
-                    continue
-
-                signal = session.signals[signal_name]
-                data = signal.data
-                
-                # peak and foot values
-                peak_idx = int(row_data[f"{signal_name}_peak"])
-                foot_idx = int(row_data[f"{signal_name}_foot"])
-                peak_val = data[peak_idx]
-                foot_val = data[foot_idx]
-
-                raw_amp = peak_val - foot_val
-                window_data = data[int(row_data['start']):int(row_data['end'])]
-                norm_amp = raw_amp / np.mean(window_data)
-
-                results.update({
-                    f"{signal_name}_amp": raw_amp,
-                    f"{signal_name}_amp_norm": norm_amp,
-                    f"{signal_name}_rise_time": (peak_idx - foot_idx) / signal.sampling_rate
-                })
-            except Exception as e:
-                print(f"Error computing PWA features for session {session.session_id}, window {row_data["window_id"]}: {e}")
-        
-        return results
-
-    def compute_PAT(self, session, row_data, signal_names):
-        """
-        Calculates PAT by comparing timing between two signals.
-        Can only be run on cardiac cycle windowed data.
-        ECG must be one of the signals.
-        """
-        if self.windowing_type != 'cardiac_cycles':
-            raise RuntimeError("PAT can only be computed on cardiac cycle windowed data.")
-        
-        if "ECG_downsample" not in signal_names:
-            raise ValueError("PAT computation requires 'ECG_downsample' as one of the signals.")
-        
-        results = {}
-
-        for signal_name in signal_names:
-            if signal_name != "ECG_downsample":
-                if row_data[f"{signal_name}_quality"] == False:
-                    results.update({f"PAT_{signal_name}": np.nan})
-                    continue
-
-                ecg_peak = int(row_data["ECG_downsample_R_peak"])
-
-                if "ppg" in signal_name.lower():
-                    ppg_foot = int(row_data[f"{signal_name}_foot"])
-                    pat_value = (ppg_foot - ecg_peak)
-                    results.update({f"PAT_{signal_name}": pat_value})
-                elif "earbud" in signal_name.lower():
-                    earbud_a = int(row_data[f"{signal_name}_a"])
-                    pat_value = (earbud_a - ecg_peak)
-                    results.update({f"PAT_{signal_name}": pat_value})
-                else:
-                    print(f"Signal {signal_name} not recognized for PAT computation.")
-        
-        return results

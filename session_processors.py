@@ -1,4 +1,4 @@
-from signal_processors.base import PhysiologicalSignal
+from signal_processors.base_signal import PhysiologicalSignal
 from dynamic_access import SignalsWrapper
 import copy
 import pandas as pd

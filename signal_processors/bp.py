@@ -1,4 +1,4 @@
-from .base import PhysiologicalSignal
+from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import cleanup_bp_signal_rm 
 import numpy as np
 import scipy.ndimage as ndimage

@@ -1,4 +1,4 @@
-from .base import PhysiologicalSignal
+from .base_signal import PhysiologicalSignal
 from .ecg import ECG
 from .ppg import PPG
 from .earbud import Earbud

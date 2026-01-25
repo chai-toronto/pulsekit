@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 from signal_processors import ECG, PPG, Stethoscope, Earbud, Accelerometer, RespirationBelt, BP
+from feature_processors import Feature, PAT, PWA
 from dataset_processors import Dataset               
 
 # Create the Manager
@@ -43,10 +44,9 @@ test_dataset.process_signals(signal_list=[
     "Systolic_BP_downsample"
     ])
 
-features={
-    "PWA": ["PPG_Finger_downsample", "PPG_Ear_downsample"],
-    "PAT": ["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"]
-}
 
 print("Computing features...")
-test_dataset.compute_features(feature_map=features)
+test_dataset.compute_features(features=[
+    PWA(dataset=test_dataset, signals=["PPG_Finger_downsample", "PPG_Ear_downsample"]),
+    PAT(dataset=test_dataset, signals=["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"])
+])

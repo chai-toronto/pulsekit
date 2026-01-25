@@ -1,4 +1,4 @@
-from .base import PhysiologicalSignal
+from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import apply_butterworth_filter
 from scipy.signal import find_peaks
 import numpy as np
