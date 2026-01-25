@@ -127,7 +127,8 @@ class Dataset:
                     fiducials = signal.extract_fiducials(preprocessed_signal, start, end, self.windowing_type)
                     is_good = signal.check_quality(preprocessed_signal, start, end, fiducials, self.windowing_type)
                     
-                    session_results[i].update(fiducials)
+                    if fiducials is not None:
+                        session_results[i].update(fiducials)
                     session_results[i][f"{signal_name}_quality"] = is_good
 
             # Save results back to session fiducials CSV   

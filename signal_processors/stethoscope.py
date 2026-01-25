@@ -37,13 +37,3 @@ class Stethoscope(PhysiologicalSignal):
         if fft_mags[hz_60_bin] > (np.mean(fft_mags) * 10):
             return False
         return True
-    
-    def extract_window_fiducials(self, preprocessed, window_start: int, window_end: int):
-        # basic placeholder to return stats in the window
-        window_data = preprocessed[window_start:window_end]
-        return {
-            f"{self.name}_mean": np.mean(window_data),
-            f"{self.name}_std": np.std(window_data),
-            f"{self.name}_max": np.max(window_data),
-            f"{self.name}_min": np.min(window_data)
-        }

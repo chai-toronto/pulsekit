@@ -77,7 +77,3 @@ class BP(PhysiologicalSignal):
     def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
         # Re-use the same logic as cardiac cycle
         return self.check_quality_cardiac_cycle(preprocessed, window_start, window_end, fiducials)
-    
-    def extract_window_fiducials(self, preprocessed, window_start: int, window_end: int):
-        # Re-use the same logic as cardiac cycle
-        return self.extract_cardiac_cycle_fiducials(preprocessed, window_start, window_end)

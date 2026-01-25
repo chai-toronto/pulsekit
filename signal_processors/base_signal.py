@@ -85,10 +85,8 @@ class PhysiologicalSignal:
     def extract_fiducials(self, preprocessed, window_start: int, window_end: int, windowing_type: str):
         if windowing_type == "cardiac_cycles":
             return self.extract_cardiac_cycle_fiducials(preprocessed, window_start, window_end)
-        elif windowing_type == "fixed_windows":
-            return self.extract_window_fiducials(preprocessed, window_start, window_end)
         else:
-            raise NotImplementedError(f"Fiducial extraction for windowing type '{windowing_type}' is not implemented.")
+            return None
 
 
     def check_quality(self, preprocessed, window_start: int, window_end: int, fiducials: dict, windowing_type: str):
