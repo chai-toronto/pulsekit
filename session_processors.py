@@ -7,11 +7,27 @@ import os
 
 
 class Session:
+    '''
+    Represents a recording session for a participant.
+    Loads demographics from a CSV file in the data directory.
+    Manages physiological signals for the session.
+
+    :param self: Session object
+    :param sessionId: str, unique identifier for the session
+    :param signals: wrapped dictionary of PhysiologicalSignal objects to allow dot notation access
+    :param data_directory: str, path to the main data directory
+    :param windows: np.ndarray or None, start and end indices of windows in the session
+    :param participant_id: str, identifier for the participant
+    :param height: float or None, participant height in cm
+    :param weight: float or None, participant weight in kg
+    :param age: int or None, participant age in years
+    :param gender: str or None, participant gender, 1: male, 2: female
+    :param length: int, length of the session in samples
+    '''
     def __init__(self, sessionId, physiologicalSignals, data_directory):
         self.session_id = sessionId
         self.data_directory = data_directory
         self.windows = None
-        self.physiologicalSignals = physiologicalSignals
         self.participant_id = sessionId.split("_")[0]
         demos = self.get_participant_demographics()
         
