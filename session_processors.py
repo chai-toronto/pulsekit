@@ -29,7 +29,15 @@ class Session:
         self.signals = SignalsWrapper(signals_dict)
         
 
-    def get_participant_demographics(self):
+    def get_participant_demographics(self) -> dict:
+        '''
+        Loads demographics from a CSV file located in the data directory.
+        Expects columns: Participant, Height, Weight, Age
+        Runs on initialization of Session object.
+        
+        :param self: Session object
+        :return: dict with keys 'Height', 'Weight', 'Age', 'Gender'
+        '''
         load_dir = os.path.join(self.data_directory, "demographics.csv")
         defaults = {"Height": None, "Weight": None, "Age": None, "Gender": None}
 
@@ -52,39 +60,54 @@ class Session:
             print(f"Error reading demographics: {e}")
             return defaults
 
-    def get_signal(self, name):
+    def get_signal(self, name: str) -> PhysiologicalSignal:
+        '''
+        Retrieves a physiological signal object by name.
+        
+        :param self: Session object
+        :param name: str, name of the signal to retrieve
+        :return: PhysiologicalSignal or None
+        '''
         return self.signals.get(name, None)
     
-    def load_signals(self):
-        return NotImplementedError("This method should be implemented in subclasses.")
-    
-    def load_session(self, *args, **kwargs):
+    def load_session(self) -> None:
+        '''
+        Loads raw signal data into memory for all signals in this session.
+        
+        :param self: Session object
+        '''
         for signal in self.signals.values():
             signal.load_data()
     
-    def unload_session(self):
-        """
-        Critical for memory management. 
-        Drops raw signal data but keeps calculated attributes (like cardiac_cycles).
-        """
+    def unload_session(self) -> None:
+        '''
+        Clears raw signal data from memory for all signals in this session.
+        
+        :param self: Session object
+        '''
         for signal in self.signals.values():
             if hasattr(signal, 'clear_data'):
                 signal.clear_data()
 
-    def detect_cycles(self, reference_signal_name: str):
-        """
-        Uses a reference signal to calculate beat-to-beat intervals.
-        Stores result in self.cardiac_cycles as an (N, 2) int64 numpy array.
-        Column 0: Start Index
-        Column 1: End Index
-        """
+    def detect_cycles(self, reference_signal_name: str) -> None:
+        '''
+        Detects cardiac cycles using the specified reference signal.
+        Stores start and end indices in self.windows.
+        
+        :param self: Session object
+        :param reference_signal_name: str, name of the reference signal
+        :type reference_signal_name: str
+        '''
         try:
             ref_signal = getattr(self.signals, reference_signal_name)
         except AttributeError:
             raise ValueError(f"Reference signal '{reference_signal_name}' not found in Session {self.session_id}")
+        
+        if not hasattr(ref_signal, 'get_cardiac_cycles'):
+            raise NotImplementedError(f"The signal type {type(ref_signal).__name__} does not have a get_cardiac_cycles method yet.")
 
         # run that reference signal's peak detection
-        peaks = ref_signal.find_peaks()
+        peaks = ref_signal.get_cardiac_cycles()
 
         if len(peaks) < 2:
             print(f"Warning: Not enough peaks found in {self.session_id}")
@@ -93,14 +116,15 @@ class Session:
         
         self.windows = np.column_stack((peaks[:-1], peaks[1:]))
     
-    def get_fixed_windows(self, length, **kwargs):
-        """
-        used instead of get cardiac cycles for fixed windowing approaches such as deep learning models
-        will store indices in self.windows
+    def get_fixed_windows(self, length, **kwargs) -> None:
+        '''
+        Used instead of get cardiac cycles for fixed windowing approaches such as deep learning models
+        Stores indices in self.windows
         
+        :param self: Session object
         :param length: int, length of each window in seconds
-        :param kwargs: Description
-        """
+        :param kwargs: Additional arguments (not used)
+        '''
         signal = self.signals["ECG_downsample"]
         sampling_rate = signal.sampling_rate
         window_size = int(length * sampling_rate)
@@ -115,11 +139,14 @@ class Session:
         self.windows = np.array(windows, dtype=np.int64)
 
 
-    def save_fiducials(self, new_data_df):
-        """
-        Merges new fiducial columns into the existing CSV for this session.
-        Matches on 'window_id'.
-        """
+    def save_fiducials(self, new_data_df: pd.DataFrame) -> None:
+        '''
+        Saves or updates fiducials CSV file for this session.
+        
+        :param self: Session object
+        :param new_data_df: new fiducials data to save
+        :type new_data_df: pd.DataFrame
+        '''
         file_path = os.path.join(self.data_directory, self.session_id, "segments.csv")
         
         if os.path.exists(file_path):

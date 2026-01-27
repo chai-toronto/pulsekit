@@ -15,42 +15,19 @@ class Dataset:
 
         self.sessions = SessionsWrapper({
             sid: Session(sid, signals, data_directory) for sid in sessionIds
-        })
-
-
-    def load_sessions(self, demographics_fp, **kwargs):
-        for session in self.sessions.values():
-            print(session.session_id)
-            session.load_session(demographics_fp = demographics_fp)
-
-    def preprocess_sessions(self, *args, **kwargs):
-        for session in self.sessions.values():
-            session.preprocess_signals(*args, **kwargs)
+        })  
     
-    def preprocess_data(self, *args, **kwargs):
-        pass
+    # Run one of the following windowing methods before processing signals (cardiac cycles or fixed windows)
 
-    def get_quality_masks(self, *args, **kwargs):
-        pass
-
-    def get_activity_masks(self, *args, **kwargs):
-        pass    
-    
-    # Run one of the following windowing methods before processing signals
-    # can be cardiac cycles or fixed windows
-
-    def get_cardiac_cycles(self, *args, **kwargs):
-        """
-        Iterates through all sessions and triggers cardiac cycle segmentation.
+    def get_cardiac_cycles(self, *args, **kwargs) -> None:
+        '''
+        Detects cardiac cycles for all sessions using the specified reference signal.
+        Stores start and end indices in each session's windows attribute.
         
-        Accepts any arguments required by the underlying session.detect_cycles() method.
-
-        Stored in session objects as session.windows
-        
-        Common Kwargs:
-            reference_signal_name (str): The name of the signal to use (default: "ECG_downsample").
-            method (str): The algorithm to use (default: "r_peak").
-        """        
+        :param self: Dataset object
+        :param args: Arguments to be passed to session objects
+        :param kwargs: Keyword arguments to be passed to session objects
+        '''    
         self.windowing_type = 'cardiac_cycles'
         for session in self.sessions.values():
             try:
@@ -58,14 +35,14 @@ class Dataset:
             except Exception as e:
                 print(f"Session {session.session_id}: Skipping cycle detection. Reason: {e}")
     
-    def get_fixed_windows(self, length=10, **kwargs):
+    def get_fixed_windows(self, length=10, **kwargs) -> None:
         """
-        used instead of get cardiac cycles for fixed windowing approaches such as deep learning models
-        will store indices in session.windows
+        Used instead of get cardiac cycles for fixed windowing approaches such as deep learning models
+        Will store indices in session.windows
         
         :param self: Dataset object
         :param length: int, length of each window in seconds
-        :param kwargs: Description
+        :param kwargs: Additional keyword arguments to be passed to session objects
         """
         self.windowing_type = 'fixed_windows'
         for session in self.sessions.values():
@@ -74,30 +51,15 @@ class Dataset:
             except Exception as e:
                 print(f"Session {session.session_id}: Skipping fixed windowing. Reason: {e}")
 
-
-    def annotate_cardiac_cycles_with_activities(self, *args, **kwargs):
-        pass
-
-    def compute_features(self, *args, **kwargs):
-        pass
-
-    def save_features(self, *args, **kwargs):
-        pass
-
-    def save_quality_masks(self, *args, **kwargs):
-        pass
-
-    def save_dataset(self, *args, **kwargs):
-        pass
-
-    def load_dataset(self, *args, **kwargs):
-        pass
-
-    def process_signals(self, signal_list: list[str]):
-        """
-        Traverses sessions, ensures cycles exist, processes signals, 
-        and updates the fiducials CSV.
-        """
+    def process_signals(self, signal_list: list[str]) -> None:
+        '''
+        Orchestrates signal preprocessing, fiducial extraction, and quality assessment.
+        Stores results back to each session's fiducials CSV in the data directory.
+        
+        :param self: Dataset object
+        :param signal_list: List of signal names to process
+        :type signal_list: list[str]
+        '''
         if self.windowing_type is None:
             raise RuntimeError("Windowing method not set. Please run get_cardiac_cycles() or get_fixed_windows() first.")
     
@@ -138,11 +100,16 @@ class Dataset:
             
             session.unload_session()
 
-    def compute_features(self, features: list[Feature]):
-        """
-        Orchestrates feature calculation.
+    def compute_features(self, features: list[Feature]) -> None:
+        '''
+        Computes features for all sessions based on previously extracted fiducials.
+        Stores results back to a features CSV in the data directory.
         Necessary signals and windowing type are validated in Feature subclasses.
-        """
+        
+        :param self: Dataset object
+        :param features: List of Feature objects to compute
+        :type features: list[Feature]
+        '''
         all_session_features = []
 
         for session in self.sessions.values():
@@ -173,3 +140,42 @@ class Dataset:
         feature_df = pd.DataFrame(all_session_features)
         save_loc = os.path.join(self.data_directory, "features.csv")
         feature_df.to_csv(save_loc, index=False)
+
+
+    # TODO: Review with ken, original methods which have not been implemented
+    
+    def annotate_cardiac_cycles_with_activities(self, *args, **kwargs):
+        pass
+
+    def compute_features(self, *args, **kwargs):
+        pass
+
+    def save_features(self, *args, **kwargs):
+        pass
+
+    def save_quality_masks(self, *args, **kwargs):
+        pass
+
+    def save_dataset(self, *args, **kwargs):
+        pass
+
+    def load_dataset(self, *args, **kwargs):
+        pass
+
+    def load_sessions(self):
+        for session in self.sessions.values():
+            print(session.session_id)
+            session.load_session()
+
+    def preprocess_sessions(self, *args, **kwargs):
+        for session in self.sessions.values():
+            session.preprocess_signals(*args, **kwargs)
+    
+    def preprocess_data(self, *args, **kwargs):
+        pass
+
+    def get_quality_masks(self, *args, **kwargs):
+        pass
+
+    def get_activity_masks(self, *args, **kwargs):
+        pass  

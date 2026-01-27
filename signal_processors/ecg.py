@@ -10,7 +10,7 @@ class ECG(PhysiologicalSignal):
         processed = apply_butterworth_filter(self.data, 0.5, "high", fs=self.sampling_rate)
         return apply_butterworth_filter(processed, 40, "low", fs=self.sampling_rate)
 
-    def find_peaks(self):
+    def get_cardiac_cycles(self):
         ecg_signal = self.data
         detection_signal = apply_butterworth_filter(ecg_signal, 5, "high", fs=self.sampling_rate)
         detection_signal = apply_butterworth_filter(detection_signal, 15, "low", fs=self.sampling_rate)
