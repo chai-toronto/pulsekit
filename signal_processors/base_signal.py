@@ -42,7 +42,7 @@ class PhysiologicalSignal:
         else:
             print(f"Warning: File not found at {load_dir}")
 
-    def clear_data(self):
+    def unload_data(self):
         """Frees memory by dropping the raw signal array."""
         self.data = None
         self.is_loaded = False

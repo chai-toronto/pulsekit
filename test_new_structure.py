@@ -26,7 +26,7 @@ test_dataset = Dataset(
     data_directory="test_data"
 )
 
-print(f"Participant 3: {test_dataset.sessions._3.age} years old, {test_dataset.sessions._3.height} cm, {test_dataset.sessions._3.weight} kg")
+print(f"Participant 3: {test_dataset.sessions._3.age} years old, {test_dataset.sessions._3.height} cm, {test_dataset.sessions._3.weight} kg, data length: {test_dataset.sessions._3.length} samples")
       
 test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
 

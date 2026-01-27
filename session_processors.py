@@ -27,6 +27,7 @@ class Session:
         for signal in signals_dict.values():
             signal.session_dir = os.path.join(data_directory, sessionId)
         self.signals = SignalsWrapper(signals_dict)
+        self.length = self.get_session_length()
         
 
     def get_participant_demographics(self) -> dict:
@@ -59,6 +60,20 @@ class Session:
         except Exception as e:
             print(f"Error reading demographics: {e}")
             return defaults
+        
+    def get_session_length(self) -> int:
+        '''
+        Determines the length of the session in samples.
+        This length should be the same for every signal in the session.
+        
+        :param self: Session object
+        :return: int, length of session in samples
+        '''
+        first_signal = next(iter(self.signals.values()))
+        length = len(first_signal.data)
+        first_signal.unload_data()
+        return length
+
 
     def get_signal(self, name: str) -> PhysiologicalSignal:
         '''
@@ -86,8 +101,8 @@ class Session:
         :param self: Session object
         '''
         for signal in self.signals.values():
-            if hasattr(signal, 'clear_data'):
-                signal.clear_data()
+            if hasattr(signal, 'unload_data'):
+                signal.unload_data()
 
     def detect_cycles(self, reference_signal_name: str) -> None:
         '''
