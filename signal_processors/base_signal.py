@@ -3,8 +3,16 @@ import os
 from typing import Dict, Any, Optional
 
 class PhysiologicalSignal:
-    """Base class for physiological signals."""
-
+    '''
+    Base class for physiological signals.
+    :param self: PhysiologicalSignal object
+    :param name: str, name of the signal
+    :param sampling_rate: int, sampling rate in Hz
+    :param data: np.ndarray, raw signal data
+    :param preprocessed_data: np.ndarray, preprocessed signal data
+    :param session_dir: str, directory path for the session data files
+    :param is_loaded: bool, flag indicating if data is loaded in memory
+    '''
     def __init__(self, name, sampling_rate, session_dir=None):
         self.name = name
         self.sampling_rate = sampling_rate
@@ -16,10 +24,11 @@ class PhysiologicalSignal:
     
     @property
     def data(self):
-        """
-        The magic property. Accessing .data triggers this function.
-        It ensures data is loaded before returning it.
-        """
+        '''
+        Docstring for data
+        
+        :param self: Description
+        '''
         if not self.is_loaded:
             self.load_data()    
         return self._data

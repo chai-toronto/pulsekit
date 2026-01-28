@@ -26,8 +26,10 @@ test_dataset = Dataset(
     data_directory="test_data"
 )
 
+print(test_dataset.sessions._3.signals.ECG_downsample.data[:10])
+
 print(f"Participant 3: {test_dataset.sessions._3.age} years old, {test_dataset.sessions._3.height} cm, {test_dataset.sessions._3.weight} kg, data length: {test_dataset.sessions._3.length} samples")
-      
+
 test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
 
 print("Windowing type:", test_dataset.windowing_type)
@@ -50,3 +52,4 @@ test_dataset.compute_features(features=[
     PWA(dataset=test_dataset, signals=["PPG_Finger_downsample", "PPG_Ear_downsample"]),
     PAT(dataset=test_dataset, signals=["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"])
 ])
+
