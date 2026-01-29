@@ -22,16 +22,19 @@ class BP(PhysiologicalSignal):
 
     def _detect_calibration_artifacts(self, data):
         """
-        Identifies calibration events (>30 second runs of ~50 or ~150) and buffers them.
+        Identifies calibration events (>5 second runs of exactly 50 or 150) and buffers them by 20 seconds
         """
+
         is_50 = (data >= 49) & (data <= 51)
         is_150 = (data >= 149) & (data <= 151)
-        
         raw_mask = is_50 | is_150
-        buffer_seconds = 30
+
+        min_run_seconds = 5
+        min_run_samples = int(min_run_seconds * self.sampling_rate)
+        long_run_mask = ndimage.binary_opening(raw_mask, structure=np.ones(min_run_samples))
+        buffer_seconds = 20
         buffer_samples = int(buffer_seconds * self.sampling_rate)
-        dilated_mask = ndimage.binary_dilation(raw_mask, structure=np.ones(buffer_samples))
-        print(f"Detected {np.sum(raw_mask)} calibration samples, dilated to {np.sum(dilated_mask)} samples out of {len(data)} total.")
+        dilated_mask = ndimage.binary_dilation(long_run_mask, structure=np.ones(buffer_samples))
         
         return dilated_mask
 
