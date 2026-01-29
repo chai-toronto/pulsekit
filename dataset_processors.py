@@ -6,6 +6,18 @@ import numpy as np
 from feature_processors import Feature, PAT, PWA
 
 class Dataset:
+    '''
+    Dataset/pipeline manager for sessions and their respective physiological signals.
+    Handles session loading, signal processing, feature computation, and saving results.
+
+    :param self: Dataset object
+    :param datasetName: str, name of the dataset
+    :param sessionIds: list of str, unique identifiers for each session in the dataset
+    :param signals: list of PhysiologicalSignal objects to be used in each session
+    :param data_directory: str, path to the main data directory containing session data
+    :param windowing_type: str or None, type of windowing used ('cardiac_cycles' or 'fixed_windows')
+    :param sessions: wrapped dictionary of Session objects to allow dot notation access
+    '''
     def __init__(self, datasetName, sessionIds, signals, data_directory):
         self.datasetName = datasetName
         self.sessionIds = sessionIds

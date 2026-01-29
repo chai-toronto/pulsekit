@@ -4,13 +4,28 @@ import numpy as np
 import scipy.ndimage as ndimage
 
 class BP(PhysiologicalSignal):
+    '''
+    Blood Pressure Signal Processor.
+    Inherits from PhysiologicalSignal.
+    For use with Diastolic_BP, Systolic_BP, or NIBP signals.
+
+    :param self: BP object
+    :param name: str, name of the signal
+    :param sampling_rate: int, sampling rate in Hz
+    :param session_dir: str, directory path for the session data files
+    :param artifact_mask: np.ndarray, boolean mask indicating artifact regions, this is calculated uniquely for this signal type
+    '''
     def __init__(self, name, sampling_rate, session_dir=None):
         super().__init__(name, sampling_rate, session_dir)
         self.artifact_mask = None 
 
-    def preprocess(self):
+    def preprocess(self) -> np.ndarray:
         """
         Preprocess the BP signal by cleaning and generating calibration artifact mask.
+        Sets self.artifact_mask attribute
+
+        :param self: BP object
+        :return: np.ndarray, raw BP signal data
         """
         raw_data = self.data
         calibration_mask = self._detect_calibration_artifacts(raw_data)
@@ -20,27 +35,38 @@ class BP(PhysiologicalSignal):
 
         return raw_data
 
-    def _detect_calibration_artifacts(self, data):
+    def _detect_calibration_artifacts(self, data, min_run_seconds=5, buffer_seconds=20) -> np.ndarray:
         """
         Identifies calibration events (>5 second runs of exactly 50 or 150) and buffers them by 20 seconds
+        Private method used in preprocess()
+
+        :param self: BP object
+        :param data: np.ndarray, raw BP signal data
+        :param min_run_seconds: int, minimum duration in seconds to consider as calibration event
+        :param buffer_seconds: int, duration in seconds to buffer before and after calibration event
+        :return: np.ndarray, boolean mask indicating calibration artifact regions
         """
 
         is_50 = (data >= 49) & (data <= 51)
         is_150 = (data >= 149) & (data <= 151)
         raw_mask = is_50 | is_150
-
-        min_run_seconds = 5
         min_run_samples = int(min_run_seconds * self.sampling_rate)
         long_run_mask = ndimage.binary_opening(raw_mask, structure=np.ones(min_run_samples))
-        buffer_seconds = 20
         buffer_samples = int(buffer_seconds * self.sampling_rate)
         dilated_mask = ndimage.binary_dilation(long_run_mask, structure=np.ones(buffer_samples))
         
         return dilated_mask
 
-    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
+    def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int) -> dict:
         """
-        Extracts Mean, Midpoint, and Median.
+        Extracts Mean, Midpoint, and Median from the BP signal within the given window.
+        Only relevant to cardiac cycle windowing.
+
+        :param self: BP object
+        :param preprocessed: np.ndarray, preprocessed BP signal data
+        :param window_start: int, index of window start
+        :param window_end: int, index of window end
+        :return: dict, extracted fiducials
         """
         window_data = preprocessed[window_start:window_end]
         
@@ -58,19 +84,27 @@ class BP(PhysiologicalSignal):
             f"{self.name}_midpoint": val_midpoint
         }
 
-    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
+    def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict, min_value:int=20, max_value:int=250) -> bool:
         """
         Checks if the current window overlaps with any known artifacts.
+        Verifies normal physiological range for BP values.
+
+        :param self: BP object
+        :param preprocessed: np.ndarray, preprocessed BP signal data
+        :param window_start: int, index of window start
+        :param window_end: int, index of window end
+        :param fiducials: dict, extracted fiducials
+        :param min_value: int, minimum acceptable BP value
+        :param max_value: int, maximum acceptable BP value
+        :return: bool, True if the window is of good quality, False otherwise
         """
         if window_end > len(self.artifact_mask):
             return False
 
-        # Check if ANY point in this window is marked as an artifact
         window_mask = self.artifact_mask[window_start:window_end]
         if np.any(window_mask):
             return False 
         
-        # sanity check
         val = fiducials.get("midpoint", 0)
         if val < 20 or val > 250:
             return False
@@ -78,5 +112,15 @@ class BP(PhysiologicalSignal):
         return True
         
     def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
-        # Re-use the same logic as cardiac cycle
+        '''
+        Placeholder for fixed window quality check.
+        Same logic as cardiac cycle quality check for now.
+
+        :param self: BP object
+        :param preprocessed: np.ndarray, preprocessed BP signal data
+        :param window_start: int, index of window start
+        :param window_end: int, index of window end
+        :param fiducials: dict, extracted fiducials
+        :return: bool, True if the window is of good quality, False otherwise
+        '''
         return self.check_quality_cardiac_cycle(preprocessed, window_start, window_end, fiducials)

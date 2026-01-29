@@ -21,12 +21,13 @@ test_dataset = Dataset(
         Accelerometer(name="AccZ_downsample", sampling_rate=1000),
         RespirationBelt(name="Respiration_Belt_downsample", sampling_rate=1000),
         BP(name="Diastolic_BP_downsample", sampling_rate=1000),
-        BP(name="Systolic_BP_downsample", sampling_rate=1000)
+        BP(name="Systolic_BP_downsample", sampling_rate=1000),
+        BP(name="NIBP_downsample", sampling_rate=1000)
     ],
     data_directory="test_data"
 )
 
-print(test_dataset.sessions._3.signals.ECG_downsample.data[:10])
+print("ECG Data Example from session 3:", test_dataset.sessions._3.signals.ECG_downsample.data[:10])
 
 print(f"Participant 3: {test_dataset.sessions._3.age} years old, {test_dataset.sessions._3.height} cm, {test_dataset.sessions._3.weight} kg, data length: {test_dataset.sessions._3.length} samples")
 
@@ -34,6 +35,16 @@ test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
 
 print("Windowing type:", test_dataset.windowing_type)
 
+print("Processing signals...")
+
+test_dataset.process_signals(signal_list=["NIBP_downsample"])
+
+nibp_mask = test_dataset.sessions._5.signals.NIBP_downsample.artifact_mask
+
+print("NIBP artifact mask sample:", nibp_mask[150000:250000:1000])
+
+print("NIBP mask percentage of artifacts:", np.mean(nibp_mask) * 100, "%")
+'''
 test_dataset.process_signals(signal_list=[
     "ECG_downsample",
     "PPG_Finger_downsample",
@@ -53,3 +64,4 @@ test_dataset.compute_features(features=[
     PAT(dataset=test_dataset, signals=["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"])
 ])
 
+'''
