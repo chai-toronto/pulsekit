@@ -13,6 +13,8 @@ class PhysiologicalSignal:
     :param preprocessed_data: np.ndarray, preprocessed signal data
     :param session_dir: str, directory path for the session data files
     :param is_loaded: bool, flag indicating if data is loaded in memory
+    :param _custom_quality_check: Optional callable for custom quality check
+    :param _custom_fiducial_extractor: Optional callable for custom fiducial extraction
     '''
     def __init__(self, name, sampling_rate, session_dir=None):
         self.name = name
@@ -22,6 +24,8 @@ class PhysiologicalSignal:
         self.preprocessed_data = None
         self.session_dir = session_dir
         self.is_loaded = False
+        self._custom_quality_check = None
+        self._custom_fiducial_extractor = None
     
     @property
     def data(self) -> Optional[np.ndarray]:
@@ -135,6 +139,7 @@ class PhysiologicalSignal:
         '''
         Routes to specialized fiducial extraction methods based on windowing type.
         Methods like extract_cardiac_cycle_fiducials should be implemented in subclasses.
+        If a custom extractor is provided, it will be used instead.
         
         :param self: PhysiologicalSignal object
         :param preprocessed: preprocessed signal data
@@ -143,6 +148,9 @@ class PhysiologicalSignal:
         :param windowing_type:  str, type of windowing used
         :return: Optional[Dict[str, Any]], extracted fiducials
         '''
+        if self._custom_fiducial_extractor:
+            return self._custom_fiducial_extractor(self, preprocessed, window_start, window_end, windowing_type)
+        
         if windowing_type == "cardiac_cycles":
             return self.extract_cardiac_cycle_fiducials(preprocessed, window_start, window_end)
         else:
@@ -153,6 +161,7 @@ class PhysiologicalSignal:
         '''
         Routes to specialized quality check methods based on windowing type.
         Methods like check_quality_cardiac_cycle should be implemented in subclasses.
+        If a custom quality checker is provided, it will be used instead.
         
         :param self: PhysiologicalSignal object
         :param preprocessed: preprocessed signal data
@@ -167,6 +176,9 @@ class PhysiologicalSignal:
         :return: returns whether the signal segment passes quality check
         :rtype: bool
         '''
+        if self._custom_quality_check:
+            return self._custom_quality_check(self, preprocessed, window_start, window_end, fiducials, windowing_type)
+        
         if windowing_type == "cardiac_cycles":
             return self.check_quality_cardiac_cycle(preprocessed, window_start, window_end, fiducials)
         elif windowing_type == "fixed_windows":

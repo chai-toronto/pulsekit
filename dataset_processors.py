@@ -3,7 +3,7 @@ from dynamic_access import SessionsWrapper
 import pandas as pd
 import os
 import numpy as np
-from feature_processors import Feature, PAT, PWA
+from feature_processors import Feature
 
 class Dataset:
     '''
@@ -153,6 +153,39 @@ class Dataset:
         feature_df = pd.DataFrame(all_session_features)
         save_loc = os.path.join(self.data_directory, "features.csv")
         feature_df.to_csv(save_loc, index=False)
+
+    def set_custom_quality_check(self, signal_name: str, func: callable):
+        """
+        Overrides the quality check for a specific signal across all sessions.
+        The function must accept: (signal_obj, preprocessed, start, end, fiducials, windowing_type)
+        Note: This function should return a boolean indicating quality. It also may or may not rely on fiducials.
+
+        :param self: Dataset object
+        :param signal_name: str, name of the signal to override
+        :param func: callable, custom quality check function
+        """
+        count = 0
+        for session in self.sessions.values():
+            if signal_name in session.signals:
+                session.signals[signal_name]._custom_quality_check = func
+                count += 1
+        print(f"Applied custom quality check to {signal_name} across {count} sessions.")
+
+    def set_custom_fiducial_extractor(self, signal_name: str, func: callable):
+        """
+        Overrides the fiducial extractor for a specific signal across all sessions.
+        The function must accept: (signal_obj, preprocessed, start, end, windowing_type)
+
+        :param self: Dataset object
+        :param signal_name: str, name of the signal to override
+        :param func: callable, custom fiducial extraction function
+        """
+        count = 0
+        for session in self.sessions.values():
+            if signal_name in session.signals:
+                session.signals[signal_name]._custom_fiducial_extractor = func
+                count += 1
+        print(f"Applied custom extractor to {signal_name} across {count} sessions.")
 
 
     # TODO: Review with ken, original methods which have not been implemented
