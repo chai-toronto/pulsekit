@@ -11,6 +11,8 @@ class Session:
     Represents a recording session for a participant.
     Loads demographics from a CSV file in the data directory.
     Manages physiological signals for the session.
+    Only loads signal data into memory when needed.
+    Loads physiological signals based on signal objects and those present in the session directory.
 
     :param self: Session object
     :param sessionId: str, unique identifier for the session
@@ -27,6 +29,7 @@ class Session:
     def __init__(self, sessionId, physiologicalSignals, data_directory):
         self.session_id = sessionId
         self.data_directory = data_directory
+        self.session_dir = os.path.join(data_directory, sessionId)
         self.windows = None
         self.participant_id = sessionId.split("_")[0]
         demos = self.get_participant_demographics()
@@ -36,12 +39,16 @@ class Session:
         self.age = demos.get("Age")
         self.gender = demos.get("Gender")
 
-        # creating a session-specific copy of each signal object and passing in the directory
-        signals_dict = {
-            s.name: copy.deepcopy(s) for s in physiologicalSignals
-        }
-        for signal in signals_dict.values():
-            signal.session_dir = os.path.join(data_directory, sessionId)
+        # creating a session-specific copy of each signal object present in the session and passing in the directory
+        signals_dict = {}
+        
+        for s in physiologicalSignals:
+            expected_path = os.path.join(self.session_dir, s.name)
+            if os.path.exists(expected_path):
+                s_copy = copy.deepcopy(s)
+                s_copy.session_dir = self.session_dir
+                signals_dict[s.name] = s_copy
+        
         self.signals = SignalsWrapper(signals_dict)
         self.length = self.get_session_length()
         
@@ -85,10 +92,19 @@ class Session:
         :param self: Session object
         :return: int, length of session in samples
         '''
-        first_signal = next(iter(self.signals.values()))
-        length = len(first_signal.data)
-        first_signal.unload_data()
-        return length
+        available_signals = list(self.signals.values())
+        if not available_signals:
+            return 0
+
+        first_signal = available_signals[0]
+        data = first_signal.data
+        
+        if data is not None:
+            length = len(data)
+            first_signal.unload_data()
+            return length
+            
+        return 0
 
 
     def get_signal(self, name: str) -> PhysiologicalSignal:

@@ -6,3 +6,4 @@ from .stethoscope import Stethoscope
 from .accelerometer import Accelerometer
 from .resp_belt import RespirationBelt
 from .bp import BP
+from .hemodynamics import Hemodynamics

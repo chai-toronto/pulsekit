@@ -14,6 +14,18 @@ class DynamicAttributeAccess:
             return value
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
     
+    def __iter__(self):
+        """Allows 'for x in wrapper:'"""
+        return iter(self._data)
+
+    def __len__(self):
+        """Allows 'len(wrapper)'"""
+        return len(self._data)
+
+    def values(self):
+        """Allows 'wrapper.values()' to return the objects"""
+        return self._data.values()
+    
     def __getitem__(self, key):
         """Still support dictionary-style access"""
         return self._data[key]

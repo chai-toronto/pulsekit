@@ -77,7 +77,7 @@ class PhysiologicalSignal:
         
         :param self: PhysiologicalSignal object
         '''
-        pass
+        return self.data
 
     def get_sampling_rate(self) -> int:
         '''

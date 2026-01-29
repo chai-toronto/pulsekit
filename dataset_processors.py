@@ -90,10 +90,11 @@ class Dataset:
                 })
 
             for signal_name in signal_list:
-                signal = session.signals[signal_name]
-                if not signal:
-                    print(f"Signal {signal_name} not found in session.")
+                if signal_name not in session.signals:
+                    print(f"Signal {signal_name} not found in session {session.session_id}.")
                     continue
+                
+                signal = session.signals[signal_name]
                 
                 preprocessed_signal = signal.preprocess()
 
