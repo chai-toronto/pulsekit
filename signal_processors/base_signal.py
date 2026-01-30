@@ -7,7 +7,7 @@ class PhysiologicalSignal:
     Base class for physiological signals.
     :param self: PhysiologicalSignal object
     :param name: str, name of the signal
-    :param sampling_rate: int, sampling rate in Hz
+    :param sampling_rate: int, sampling rate in Hz (deafults to 1000)
     :param peaks: list, list of detected peaks in the signal
     :param data: np.ndarray, raw signal data
     :param preprocessed_data: np.ndarray, preprocessed signal data
@@ -16,7 +16,7 @@ class PhysiologicalSignal:
     :param _custom_quality_check: Optional callable for custom quality check
     :param _custom_fiducial_extractor: Optional callable for custom fiducial extraction
     '''
-    def __init__(self, name, sampling_rate, session_dir=None):
+    def __init__(self, name, sampling_rate=1000, session_dir=None):
         self.name = name
         self.sampling_rate = sampling_rate
         self.peaks = []

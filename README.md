@@ -11,23 +11,35 @@ The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Steth
 To begin, define the signals you want to process and point the Dataset manager to your data directory. PulseKit uses lazy loading: it will scan for files and create the session structure immediately, but it won't load heavy raw data into memory until you explicitly request it.
 
 ```Python
-from signal_processors import ECG, PPG, Stethoscope, BP, Hemodynamics
+from signal_processors import ECG, PPG, Stethoscope, Earbud, Accelerometer, RespirationBelt, BP, Hemodynamics
 from dataset_processors import Dataset
 
 # 1. Define the signals you want to include in your pipeline
 # Every signal is initialized with its name and sampling rate (Hz)
-signals = [
-    ECG(name="ECG_downsample", sampling_rate=1000),
-    PPG(name="PPG_Finger_downsample", sampling_rate=1000),
-    BP(name="NIBP_downsample", sampling_rate=1000), # Ground truth for BP
-    Hemodynamics(name="Heart_Rate_downsample", sampling_rate=1000)
+signals=[
+    ECG(name="ECG_downsample"),
+    PPG(name="PPG_Finger_downsample"),
+    PPG(name="PPG_Ear_downsample"),
+    PPG(name="PPG_Wrist_downsample"),
+    Stethoscope(name="Digital_Stethoscope_downsample"),
+    Earbud(name="Earbud_Left_downsample"),
+    Earbud(name="Earbud_Right_downsample"),
+    Accelerometer(name="AccZ_downsample"),
+    RespirationBelt(name="Respiration_Belt_downsample"),
+    BP(name="Diastolic_BP_downsample"),
+    BP(name="Systolic_BP_downsample"),
+    BP(name="NIBP_downsample"),
+    Hemodynamics(name="Cardiac_Output_downsample"),
+    Hemodynamics(name="Stroke_Volume_downsample"),
+    Hemodynamics(name="SVR_downsample"),
+    Hemodynamics(name="Heart_Rate_downsample")
 ]
 
 # 2. Create the Dataset Manager
 # This will automatically filter out signals that are missing from specific session folders
 test_dataset = Dataset(
     datasetName="MyBPProject",
-    sessionIds=["3", "3_2", "4", "5"], # The specific sessions to include
+    sessionIds=["3", "3_2", "4", "5", "41", "41_2"], # The specific sessions to include
     signals=signals,
     data_directory="path/to/cramped_data"
 )

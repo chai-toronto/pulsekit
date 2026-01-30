@@ -15,7 +15,7 @@ class BP(PhysiologicalSignal):
     :param session_dir: str, directory path for the session data files
     :param artifact_mask: np.ndarray, boolean mask indicating artifact regions, this is calculated uniquely for this signal type
     '''
-    def __init__(self, name, sampling_rate, session_dir=None):
+    def __init__(self, name, sampling_rate=1000, session_dir=None):
         super().__init__(name, sampling_rate, session_dir)
         self.artifact_mask = None 
 

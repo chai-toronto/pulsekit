@@ -80,6 +80,8 @@ class Dataset:
                 print(f"Skipping session {session.session_id}")
                 continue
             
+            print(f"Processing session {session.session_id}...")
+
             # create a list to hold results for all cycles in this session
             session_results = []
             for i, (start, end) in enumerate(session.windows):
