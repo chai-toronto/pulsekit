@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-from signal_processors import ECG, PPG, Stethoscope, Earbud, Accelerometer, RespirationBelt, BP, Hemodynamics
-from feature_processors import PAT, PWA
-from dataset_processors import Dataset               
+from PulseKit import *            
 
 # 1. Define the signals you want to include in your pipeline
 # Every signal is initialized with its name and sampling rate (Hz)

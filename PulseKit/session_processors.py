@@ -1,5 +1,5 @@
-from signal_processors.base_signal import PhysiologicalSignal
-from dynamic_access import SignalsWrapper
+from .signal_processors.base_signal import PhysiologicalSignal
+from .dynamic_access import SignalsWrapper
 import copy
 import pandas as pd
 import numpy as np

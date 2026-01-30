@@ -1,9 +1,10 @@
-from session_processors import Session
-from dynamic_access import SessionsWrapper
+from .session_processors import Session
+from .dynamic_access import SessionsWrapper
+from .feature_processors import Feature
 import pandas as pd
 import os
 import numpy as np
-from feature_processors import Feature
+
 
 class Dataset:
     '''
