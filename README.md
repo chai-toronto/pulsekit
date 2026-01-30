@@ -8,8 +8,49 @@ The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Steth
 
 ## **Initialization**
 
+To begin, define the signals you want to process and point the Dataset manager to your data directory. PulseKit uses lazy loading: it will scan for files and create the session structure immediately, but it won't load heavy raw data into memory until you explicitly request it.
 
+```Python
+from signal_processors import ECG, PPG, Stethoscope, BP, Hemodynamics
+from dataset_processors import Dataset
 
+# 1. Define the signals you want to include in your pipeline
+# Every signal is initialized with its name and sampling rate (Hz)
+signals = [
+    ECG(name="ECG_downsample", sampling_rate=1000),
+    PPG(name="PPG_Finger_downsample", sampling_rate=1000),
+    BP(name="NIBP_downsample", sampling_rate=1000), # Ground truth for BP
+    Hemodynamics(name="Heart_Rate_downsample", sampling_rate=1000)
+]
+
+# 2. Create the Dataset Manager
+# This will automatically filter out signals that are missing from specific session folders
+test_dataset = Dataset(
+    datasetName="MyBPProject",
+    sessionIds=["3", "3_2", "4", "5"], # The specific sessions to include
+    signals=signals,
+    data_directory="path/to/cramped_data"
+)
+
+# 3. Define the windows (Cardiac Cycles or Fixed Length)
+# This must be run before processing signals
+test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
+
+# 4. Extract Fiducials and Quality Flags
+test_dataset.process_signals(signal_list=["ECG_downsample", "PPG_Finger_downsample", "NIBP_downsample"])
+
+# 5. Compute Features
+from feature_processors import PAT, PWA
+test_dataset.compute_features(features=[
+    PWA(dataset=test_dataset, signals=["PPG_Finger_downsample"]),
+    PAT(dataset=test_dataset, signals=["PPG_Finger_downsample", "ECG_downsample"])
+])
+```
+## **Machine Learning Example**
+
+Once compute_features() is finished, PulseKit saves a features.csv file in your data directory. This file is the bridge between physiological signal processing and your ML model.
+
+ADD EXAMPLE HERE
 
 ## **Customizing the Pipeline**
 
