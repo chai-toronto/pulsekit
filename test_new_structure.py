@@ -36,6 +36,7 @@ test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
 
 print("Windowing type:", test_dataset.windowing_type)
 
+'''
 print("Processing signals...")
 test_dataset.process_signals(signal_list=[
     "ECG_downsample",
@@ -55,6 +56,8 @@ test_dataset.process_signals(signal_list=[
     "SVR_downsample",
     "Heart_Rate_downsample"
     ])
+'''
+
 
 
 print("Computing features...")

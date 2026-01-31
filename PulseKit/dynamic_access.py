@@ -44,27 +44,25 @@ class DynamicAttributeAccess:
 
 
 class SessionsWrapper(DynamicAttributeAccess):
-    """Wrapper specifically for sessions to handle session IDs as attributes"""
-    
     def __getattr__(self, name):
-        # 1. Try finding the name exactly as typed
+        # 1. Logic for name mapping
+        session_id = None
         if name in self._data:
             session_id = name
-        # 2. If not found, and it starts with '_', try stripping it (e.g. _1 -> 1)
         elif name.startswith('_') and name[1:] in self._data:
             session_id = name[1:]
-        else:
-            # If neither works, raise the error
-            raise AttributeError(f"Session '{name}' (mapped to '{name}') not found. Available keys: {list(self._data.keys())}")
+        
+        if session_id is None:
+             raise AttributeError(f"Session '{name}' not found.")
 
-        # If we reach here, we found a valid session_id
         session_obj = self._data[session_id]
         
-        # Wrap the signals dict if it exists (Auto-upgrade to SignalsWrapper)
+        # 2. Wrap signals ONLY if they aren't already wrapped
+        # But don't re-assign it to the object permanently here
         if hasattr(session_obj, 'signals') and not isinstance(session_obj.signals, SignalsWrapper):
-            # Handle case where .signals might already be a wrapper or a raw dict
-            raw_signals = session_obj.signals._data if hasattr(session_obj.signals, '_data') else session_obj.signals
-            session_obj.signals = SignalsWrapper(raw_signals)
+            # Just return a wrapped version for this specific access
+            # Or better: Wrap these during the Dataset's initialization
+            pass 
             
         return session_obj
 

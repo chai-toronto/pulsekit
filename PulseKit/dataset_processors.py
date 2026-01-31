@@ -117,23 +117,22 @@ class Dataset:
             session.unload_session()
 
     def compute_features(self, features: list[Feature]) -> None:
-        '''
-        Computes features for all sessions based on previously extracted fiducials.
-        Stores results back to a features CSV in the data directory.
-        Necessary signals and windowing type are validated in Feature subclasses.
-        
-        :param self: Dataset object
-        :param features: List of Feature objects to compute
-        :type features: list[Feature]
-        '''
+        print("!!! FUNCTION STARTED !!!")
         all_session_features = []
+        
+        # DEBUG: Check if we have sessions
+        print(f"DEBUG: Starting compute_features with {len(self.sessions)} sessions.")
 
         for session in self.sessions.values():
             segments_path = os.path.join(self.data_directory, session.session_id, "segments.csv")
+            
             if not os.path.exists(segments_path):
-                print(f"Fiducials missing for {session.session_id}. Please run process_signals() first.")
+                print(f"DEBUG: Missing file at {segments_path}")
                 continue
+                
             fiducial_df = pd.read_csv(segments_path)
+            print(f"DEBUG: Session {session.session_id} has {len(fiducial_df)} rows in segments.csv")
+            
             session.load_session() 
 
             for i, row_data in fiducial_df.iterrows():
@@ -148,14 +147,25 @@ class Dataset:
                         feature_results = feature.compute(session, row_data)
                         row.update(feature_results)
                     except Exception as e:
-                        print(f"Error computing {feature.NAME} for session {session.session_id}, window {row_data['window_id']}: {e}")
+                        print(f"Error computing {feature.NAME}: {e}")
+                
                 all_session_features.append(row)
 
             session.unload_session()
         
+        print(f"DEBUG: Total rows collected: {len(all_session_features)}")
+        
+        if not all_session_features:
+            print("WARNING: all_session_features is empty. Check your input data/paths.")
+            return
+
         feature_df = pd.DataFrame(all_session_features)
+        print("--- DataFrame Head ---")
+        print(feature_df.head())
+        
         save_loc = os.path.join(self.data_directory, "features.csv")
         feature_df.to_csv(save_loc, index=False)
+        print(f"Saved to: {save_loc}")
 
     def set_custom_quality_check(self, signal_name: str, func: callable):
         """
