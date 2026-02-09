@@ -18,6 +18,7 @@ class BP(PhysiologicalSignal):
     def __init__(self, name, sampling_rate=1000, session_dir=None):
         super().__init__(name, sampling_rate, session_dir)
         self.artifact_mask = None 
+        self.artifact_integral = None
 
     def preprocess(self) -> np.ndarray:
         """
@@ -32,6 +33,9 @@ class BP(PhysiologicalSignal):
         _, _, cleaned_data = cleanup_bp_signal_rm(raw_data)
         cleaned_mask = np.isnan(cleaned_data)
         self.artifact_mask = calibration_mask | cleaned_mask
+
+        self.artifact_integral = np.cumsum(self.artifact_mask.astype(int))
+        self.artifact_integral = np.insert(self.artifact_integral, 0, 0)
 
         return raw_data
 
@@ -101,11 +105,11 @@ class BP(PhysiologicalSignal):
         if window_end > len(self.artifact_mask):
             return False
 
-        window_mask = self.artifact_mask[window_start:window_end]
-        if np.any(window_mask):
-            return False 
+        artifacts_in_window = self.artifact_integral[window_end] - self.artifact_integral[window_start]
+        if artifacts_in_window > 0:
+            return False
         
-        val = fiducials.get("midpoint", 0)
+        val = fiducials.get(f"{self.name}_midpoint", 0)
         if val < 20 or val > 250:
             return False
 

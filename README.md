@@ -11,8 +11,7 @@ The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Steth
 To begin, define the signals you want to process and point the Dataset manager to your data directory. PulseKit uses lazy loading: it will scan for files and create the session structure immediately, but it won't load heavy raw data into memory until you explicitly request it.
 
 ```Python
-from signal_processors import ECG, PPG, Stethoscope, Earbud, Accelerometer, RespirationBelt, BP, Hemodynamics
-from dataset_processors import Dataset
+from PulseKit import *
 
 # 1. Define the signals you want to include in your pipeline
 # Every signal is initialized with its name and sampling rate (Hz)
@@ -49,20 +48,24 @@ test_dataset = Dataset(
 test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
 
 # 4. Extract Fiducials and Quality Flags
-test_dataset.process_signals(signal_list=["ECG_downsample", "PPG_Finger_downsample", "NIBP_downsample"])
-
-# 5. Compute Features
-from feature_processors import PAT, PWA
-test_dataset.compute_features(features=[
-    PWA(dataset=test_dataset, signals=["PPG_Finger_downsample"]),
-    PAT(dataset=test_dataset, signals=["PPG_Finger_downsample", "ECG_downsample"])
-])
+test_dataset.process_signals(signal_list=["ECG_downsample", "PPG_Finger_downsample", "Systolic_BP_downsample"])
 ```
 ## **Machine Learning Example**
 
-Once compute_features() is finished, PulseKit saves a features.csv file in your data directory. This file is the bridge between physiological signal processing and your ML model.
+Once process_signals() is finished, PulseKit saves a segments.csv file in your data directory under each session. This file is the bridge between physiological signal processing and your ML model. We next run compute features with our features and targets, which will automatically filter cardiac cycles/windows by quality so you can plug the values into your model.
 
-ADD EXAMPLE HERE
+```Python
+dataset.compute_features(
+    features=[
+        PWA(dataset=dataset, signals=["PPG_Finger_downsample", "PPG_Ear_downsample"]),
+        PAT(dataset=dataset, signals=["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"])
+    ],
+    targets=["Systolic_BP_downsample", "Diastolic_BP_downsample"],
+    output_name="test_features"
+)
+```
+
+An entire example of this pipeline can be seen in ptt_modelling.ipynb.
 
 ## **Customizing the Pipeline**
 

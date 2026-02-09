@@ -116,23 +116,37 @@ class Dataset:
             
             session.unload_session()
 
-    def compute_features(self, features: list[Feature]) -> None:
-        print("!!! FUNCTION STARTED !!!")
-        all_session_features = []
+    def compute_features(self, features: list[Feature], targets: list[str] = None, output_name: str = "features") -> None:
+        '''
+        Computes features for all sessions and optionally filters based on target signal quality.
         
-        # DEBUG: Check if we have sessions
-        print(f"DEBUG: Starting compute_features with {len(self.sessions)} sessions.")
+        :param self: Description
+        :param features: List of Feature objects to compute.
+        :type features: list[Feature]
+        :param targets: List of signal names (strings) acting as ground truth/targets. 
+                        If the quality of any target in this list is bad for a specific window,
+                        all features calculated for that window will be set to NaN.
+        :type targets: list[str]
+        :param output_name: Name of the output CSV file to save features to (default: "features.csv")
+        :type output_name: str
+        '''
+        all_session_features = []
+        targets = targets or []
 
         for session in self.sessions.values():
             segments_path = os.path.join(self.data_directory, session.session_id, "segments.csv")
             
             if not os.path.exists(segments_path):
-                print(f"DEBUG: Missing file at {segments_path}")
+                print(f"Missing file at {segments_path}, skipping session {session.session_id}")
                 continue
                 
             fiducial_df = pd.read_csv(segments_path)
-            print(f"DEBUG: Session {session.session_id} has {len(fiducial_df)} rows in segments.csv")
             
+            # Warn if target quality columns are missing
+            for t in targets:
+                if f"{t}_quality" not in fiducial_df.columns:
+                    print(f"WARNING: Target quality '{t}_quality' not found in {session.session_id}.")
+
             session.load_session() 
 
             for i, row_data in fiducial_df.iterrows():
@@ -148,22 +162,34 @@ class Dataset:
                         row.update(feature_results)
                     except Exception as e:
                         print(f"Error computing {feature.NAME}: {e}")
-                
+
+                if targets:
+                    for t in targets:
+                        quality_col = f"{t}_quality"
+                        
+                        # Check if quality is good (default to False/Bad if column missing)
+                        is_good = row_data.get(quality_col, False)
+
+                        # Find all columns in segments.csv that belong to this target
+                        target_cols = [col for col in row_data.index if col.startswith(t) and col != quality_col]
+                        
+                        for name_feat in target_cols:
+                            if is_good:
+                                row[name_feat] = row_data[name_feat]
+                            else:
+                                row[name_feat] = np.nan
+
                 all_session_features.append(row)
 
             session.unload_session()
         
-        print(f"DEBUG: Total rows collected: {len(all_session_features)}")
-        
         if not all_session_features:
-            print("WARNING: all_session_features is empty. Check your input data/paths.")
+            print("WARNING: no features computed. Check your input data/paths.")
             return
 
         feature_df = pd.DataFrame(all_session_features)
-        print("--- DataFrame Head ---")
-        print(feature_df.head())
         
-        save_loc = os.path.join(self.data_directory, "features.csv")
+        save_loc = os.path.join(self.data_directory, f"{output_name}.csv")
         feature_df.to_csv(save_loc, index=False)
         print(f"Saved to: {save_loc}")
 
@@ -204,9 +230,6 @@ class Dataset:
     # TODO: Review with ken, original methods which have not been implemented
     
     def annotate_cardiac_cycles_with_activities(self, *args, **kwargs):
-        pass
-
-    def compute_features(self, *args, **kwargs):
         pass
 
     def save_features(self, *args, **kwargs):
