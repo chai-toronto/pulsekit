@@ -2,6 +2,7 @@ from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import cleanup_bp_signal_rm 
 import numpy as np
 import scipy.ndimage as ndimage
+import os
 
 class BP(PhysiologicalSignal):
     '''
@@ -22,44 +23,43 @@ class BP(PhysiologicalSignal):
 
     def preprocess(self) -> np.ndarray:
         """
-        Preprocess the BP signal by cleaning and generating calibration artifact mask.
-        Sets self.artifact_mask attribute
-
-        :param self: BP object
-        :return: np.ndarray, raw BP signal data
+        Preprocess the BP signal by loading the external NIBP mask and combining it 
+        with standard signal cleaning (NaNs).
         """
         raw_data = self.data
-        calibration_mask = self._detect_calibration_artifacts(raw_data)
+        
+        # 1. Load the pre-calculated NIBP mask from the session folder
+        external_mask = self._load_external_nibp_mask()
+        
+        # 2. Run standard cleanup (removes sharp spikes/impossible values)
         _, _, cleaned_data = cleanup_bp_signal_rm(raw_data)
+        
+        # 3. Identify NaNs from the cleanup process
         cleaned_mask = np.isnan(cleaned_data)
-        self.artifact_mask = calibration_mask | cleaned_mask
+        
+        # 4. Combine Masks
+        # external_mask is True for GOOD data, so we invert it for the ARTIFACT mask
+        # self.artifact_mask will be True where data should be REJECTED
+        self.artifact_mask = (~external_mask) | cleaned_mask
 
+        # 5. Generate integral for fast window quality lookups
         self.artifact_integral = np.cumsum(self.artifact_mask.astype(int))
         self.artifact_integral = np.insert(self.artifact_integral, 0, 0)
 
         return raw_data
 
-    def _detect_calibration_artifacts(self, data, min_run_seconds=5, buffer_seconds=20) -> np.ndarray:
+    def _load_external_nibp_mask(self) -> np.ndarray:
         """
-        Identifies calibration events (>5 second runs of exactly 50 or 150) and buffers them by 20 seconds
-        Private method used in preprocess()
-
-        :param self: BP object
-        :param data: np.ndarray, raw BP signal data
-        :param min_run_seconds: int, minimum duration in seconds to consider as calibration event
-        :param buffer_seconds: int, duration in seconds to buffer before and after calibration event
-        :return: np.ndarray, boolean mask indicating calibration artifact regions
+        Loads the consolidated NIBP mask (nibp_mask.npy) from the session directory.
+        If the file is missing, returns an all-True (all good) mask of the same length.
         """
-
-        is_50 = (data >= 49) & (data <= 51)
-        is_150 = (data >= 149) & (data <= 151)
-        raw_mask = is_50 | is_150
-        min_run_samples = int(min_run_seconds * self.sampling_rate)
-        long_run_mask = ndimage.binary_opening(raw_mask, structure=np.ones(min_run_samples))
-        buffer_samples = int(buffer_seconds * self.sampling_rate)
-        dilated_mask = ndimage.binary_dilation(long_run_mask, structure=np.ones(buffer_samples))
+        mask_path = os.path.join(self.session_dir, "nibp_mask")
         
-        return dilated_mask
+        if os.path.exists(mask_path):
+            return np.fromfile(mask_path, dtype=bool)
+        
+        # Fallback: If no mask found, assume all data is good to prevent crashes
+        return np.ones(len(self.data), dtype=bool)
 
     def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int) -> dict:
         """
