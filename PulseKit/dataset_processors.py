@@ -116,7 +116,7 @@ class Dataset:
             
             session.unload_session()
 
-    def compute_features(self, features: list[Feature], targets: list[str] = None, output_name: str = "features") -> None:
+    def compute_features(self, features: list[Feature], targets: list[str] = None, output_name: str = "features", activity_labels: bool = False) -> None:
         '''
         Computes features for all sessions and optionally filters based on target signal quality.
         
@@ -129,6 +129,8 @@ class Dataset:
         :type targets: list[str]
         :param output_name: Name of the output CSV file to save features to (default: "features.csv")
         :type output_name: str
+        :param activity_labels: If True, loads 'activity_mask' and labels each beat with the majority activity.
+        :type activity_labels: bool
         '''
         all_session_features = []
         targets = targets or []
@@ -146,6 +148,12 @@ class Dataset:
             for t in targets:
                 if f"{t}_quality" not in fiducial_df.columns:
                     print(f"WARNING: Target quality '{t}_quality' not found in {session.session_id}.")
+            
+            mask = None
+            if activity_labels:
+                mask_path = os.path.join(self.data_directory, session.session_id, "activity_mask")
+                if os.path.exists(mask_path):
+                    mask = np.fromfile(mask_path, dtype=np.uint8)
 
             session.load_session() 
 
@@ -178,6 +186,31 @@ class Dataset:
                                 row[name_feat] = row_data[name_feat]
                             else:
                                 row[name_feat] = np.nan
+
+                if activity_labels:
+                    labels = {
+                        0: "rest",
+                        1: "breath_hold",
+                        2: "valsalva",
+                        3: "exercise",
+                        4: "cold_pressor"
+                    }
+                    if mask is not None:
+                        start_idx = int(row_data.get('start', 0)) 
+                        end_idx = int(row_data.get('end', len(mask))) 
+                        
+                        # Boundary safety checks
+                        start_idx = max(0, start_idx)
+                        end_idx = min(len(mask), end_idx)
+                        
+                        if start_idx < end_idx:
+                            beat_mask = mask[start_idx:end_idx]
+                            majority_code = np.bincount(beat_mask).argmax()
+                            row['activity'] = labels.get(majority_code, "unknown")
+                        else:
+                            row['activity'] = "invalid_interval"
+                    else:
+                        row['activity'] = np.NaN
 
                 all_session_features.append(row)
 
