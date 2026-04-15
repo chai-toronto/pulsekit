@@ -1,10 +1,10 @@
 # **PulseKit**
 
-PulseKit is a data processing library for use alongside the CrampeD dataset (LINK).
+PulseKit is a data processing library for use alongside the CrampeD dataset.
 It enables a data pipleline to be built, which the user can select which signals it wishes to include.
-The dataset object, when initialized, will create Session objects for each data session, and within each of those a specific instance of each PhysiologicalSignal object which you have included in your pipeline (one of PPG, ECG, DigitalStethscope, etc.).
+The dataset object, when initialized, will create Session objects for each data session, and within each of those, a specific instance of each PhysiologicalSignal object, which you have included in your pipeline (one of PPG, ECG, DigitalStethscope, etc.).
 The session objects will store information about the user, such as height, weight, age, gender, and participant_id.
-The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Stethoscope, Accelerometer, RespirationBelt, BP, Hemodynamics) contain specificc signal processing code for the preprocessing, fiducial point extraction (if applicable), and quality checks that are applied across all sessions for these signals.
+The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Stethoscope, Accelerometer, RespirationBelt, BP, Hemodynamics) contain specific signal processing code for the preprocessing, fiducial point extraction (if applicable), and quality checks that are applied across all sessions for these signals.
 
 ## **Initialization**
 
@@ -52,7 +52,7 @@ test_dataset.process_signals(signal_list=["ECG_downsample", "PPG_Finger_downsamp
 ```
 ## **Machine Learning Example**
 
-Once process_signals() is finished, PulseKit saves a segments.csv file in your data directory under each session. This file is the bridge between physiological signal processing and your ML model. We next run compute features with our features and targets, which will automatically filter cardiac cycles/windows by quality so you can plug the values into your model.
+Once process_signals() is finished, PulseKit saves a segments.csv file in your data directory under each session. This file is the bridge between physiological signal processing and your ML model. We next run compute features with our features and targets, which will automatically filter cardiac cycles/windows by quality, so you can plug the values into your model.
 
 ```Python
 dataset.compute_features(
@@ -69,7 +69,7 @@ An entire example of this pipeline can be seen in ptt_modelling.ipynb.
 
 ## **Customizing the Pipeline**
 
-PulseKit allows you to override default signal processing behavior by "injecting" your own Python functions. This is useful when you have a specific sensor or research goal that requires a unique quality assessment or a different points of interest.
+PulseKit allows you to override default signal processing behaviour by "injecting" your own Python functions. This is useful when you have a specific sensor or research goal that requires a unique quality assessment or different points of interest.
 
 ### **1. Custom Quality Check Template**
 
