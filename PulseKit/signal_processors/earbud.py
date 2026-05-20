@@ -10,7 +10,7 @@ class Earbud(PhysiologicalSignal):
     def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
 
         theoretical_min = int(0.1 * 0.3 * self.sampling_rate) - 10 
-        theoretical_max = 500 
+        theoretical_max = 300 
         
         win_start = window_start + theoretical_min
         win_end = min(window_start + theoretical_max, len(preprocessed))

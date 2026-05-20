@@ -1,9 +1,9 @@
 # **PulseKit**
 
-PulseKit is a data processing library for use alongside a physiological dataset for pulse transit time or pulse wave analysis modelling.
-It enables a data pipeline to be built, and the user can select which signals it wishes to include.
+PulseKit is a data processing library for use alongside the CRampeD (Cardiac Repository of audio, motion, pressure, and electrocardiography data) dataset.
+It enables a data pipeline to be built, and the user can select which signals they wish to include.
 The dataset object, when initialized, will create Session objects for each data session, and within each of those, a specific instance of each PhysiologicalSignal object, which you have included in your pipeline (one of PPG, ECG, DigitalStethscope, etc.).
-The session objects will store information about the user, such as height, weight, age, gender, and participant_id.
+The session objects will store information about the subject, such as height, weight, age, gender, and participant_id.
 The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Stethoscope, Accelerometer, RespirationBelt, BP, Hemodynamics) contain specific signal processing code for the preprocessing, fiducial point extraction (if applicable), and quality checks that are applied across all sessions for these signals.
 
 ## **Initialization**
@@ -16,39 +16,40 @@ from PulseKit import *
 # 1. Define the signals you want to include in your pipeline
 # Every signal is initialized with its name and sampling rate (Hz)
 signals=[
-    ECG(name="ECG_downsample"),
-    PPG(name="PPG_Finger_downsample"),
-    PPG(name="PPG_Ear_downsample"),
-    PPG(name="PPG_Wrist_downsample"),
-    Stethoscope(name="Digital_Stethoscope_downsample"),
-    Earbud(name="Earbud_Left_downsample"),
-    Earbud(name="Earbud_Right_downsample"),
-    Accelerometer(name="AccZ_downsample"),
-    RespirationBelt(name="Respiration_Belt_downsample"),
-    BP(name="Diastolic_BP_downsample"),
-    BP(name="Systolic_BP_downsample"),
-    BP(name="NIBP_downsample"),
-    Hemodynamics(name="Cardiac_Output_downsample"),
-    Hemodynamics(name="Stroke_Volume_downsample"),
-    Hemodynamics(name="SVR_downsample"),
-    Hemodynamics(name="Heart_Rate_downsample")
+    ECG(name="ECG"),
+    PPG(name="PPG_Finger"),
+    PPG(name="PPG_Ear"),
+    Stethoscope(name="Digital_Stethoscope"),
+    Earbud(name="Earbud_Left"),
+    Earbud(name="Earbud_Right"),
+    Accelerometer(name="Accelerometer_X"),
+    Accelerometer(name="Accelerometer_Y"),
+    Accelerometer(name="Accelerometer_Z"),
+    RespirationBelt(name="Respiration_Belt"),
+    BP(name="Diastolic_BP"),
+    BP(name="Systolic_BP"),
+    BP(name="NIBP"),
+    Hemodynamics(name="Cardiac_Output"),
+    Hemodynamics(name="Stroke_Volume"),
+    Hemodynamics(name="SVR"),
+    Hemodynamics(name="Heart_Rate")
 ]
 
 # 2. Create the Dataset Manager
 # This will automatically filter out signals that are missing from specific session folders
 test_dataset = Dataset(
     datasetName="MyBPProject",
-    sessionIds=["3", "3_2", "4", "5", "41", "41_2"], # The specific sessions to include
+    sessionIds=["41", "41_2"], # The specific sessions to include
     signals=signals,
-    data_directory="path/to/cramped_data"
+    data_directory="path/to/CRampeD_data"
 )
 
 # 3. Define the windows (Cardiac Cycles or Fixed Length)
 # This must be run before processing signals
-test_dataset.get_cardiac_cycles(reference_signal_name="ECG_downsample")
+test_dataset.get_cardiac_cycles(reference_signal_name="ECG")
 
-# 4. Extract Fiducials and Quality Flags
-test_dataset.process_signals(signal_list=["ECG_downsample", "PPG_Finger_downsample", "Systolic_BP_downsample"])
+# 4. Extract Fiducials and Quality Flags for signals of interest
+test_dataset.process_signals(signal_list=["ECG", "PPG_Finger", "Systolic_BP"])
 ```
 ## **Machine Learning Example**
 
@@ -57,10 +58,10 @@ Once process_signals() is finished, PulseKit saves a segments.csv file in your d
 ```Python
 dataset.compute_features(
     features=[
-        PWA(dataset=dataset, signals=["PPG_Finger_downsample", "PPG_Ear_downsample"]),
-        PAT(dataset=dataset, signals=["PPG_Finger_downsample", "Earbud_Left_downsample", "ECG_downsample"])
+        PWA(dataset=dataset, signals=["PPG_Finger", "PPG_Ear"]),
+        PAT(dataset=dataset, signals=["PPG_Finger", "Earbud_Left", "ECG"])
     ],
-    targets=["Systolic_BP_downsample", "Diastolic_BP_downsample"],
+    targets=["Systolic_BP", "Diastolic_BP"],
     output_name="test_features"
 )
 ```
@@ -99,7 +100,7 @@ def my_custom_quality_check(signal_obj, preprocessed, start, end, fiducials, win
     return True
 
 # Apply to your dataset
-test_dataset.set_custom_quality_check("PPG_Finger_downsample", my_custom_quality_check)
+test_dataset.set_custom_quality_check("PPG_Finger", my_custom_quality_check)
 
 ```
 
@@ -132,7 +133,7 @@ def my_custom_extractor(signal_obj, preprocessed, start, end, windowing_type):
     }
 
 # Apply to your dataset
-test_dataset.set_custom_fiducial_extractor("ECG_downsample", my_custom_extractor)
+test_dataset.set_custom_fiducial_extractor("ECG", my_custom_extractor)
 
 ```
 

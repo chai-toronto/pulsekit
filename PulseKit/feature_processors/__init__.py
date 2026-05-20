@@ -1,3 +1,3 @@
 from .base_feature import Feature
-from .pat import PAT
+from .ptt import PTT
 from .pwa import PWA

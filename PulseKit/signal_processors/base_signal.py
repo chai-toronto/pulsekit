@@ -54,14 +54,14 @@ class PhysiologicalSignal:
     def load_data(self) -> None:
         '''
         Loads raw signal data from a file into memory.
-        Default loader for binary files. 
+        Default loader for numpy binary files. 
         Subclasses (like Audio) can override this if they use .wav or .csv
         
         :param self: PhysiologicalSignal object
         '''
-        load_dir = os.path.join(self.session_dir, self.name)
+        load_dir = os.path.join(self.session_dir, f"{self.name}.npy")
         if os.path.exists(load_dir):
-            self._data = np.fromfile(load_dir, dtype=float)
+            self._data = np.load(load_dir)
             self.is_loaded = True
         else:
             print(f"Warning: File not found at {load_dir}")

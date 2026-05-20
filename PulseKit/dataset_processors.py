@@ -129,7 +129,7 @@ class Dataset:
         :type targets: list[str]
         :param output_name: Name of the output CSV file to save features to (default: "features.csv")
         :type output_name: str
-        :param activity_labels: If True, loads 'activity_mask' and labels each beat with the majority activity.
+        :param activity_labels: If True, loads 'Activity_Annotations' and labels each beat with the majority activity.
         :type activity_labels: bool
         '''
         all_session_features = []
@@ -151,9 +151,9 @@ class Dataset:
             
             mask = None
             if activity_labels:
-                mask_path = os.path.join(self.data_directory, session.session_id, "activity_mask")
+                mask_path = os.path.join(self.data_directory, session.session_id, "Activity_Annotations.npy")
                 if os.path.exists(mask_path):
-                    mask = np.fromfile(mask_path, dtype=np.uint8)
+                    mask = np.load(mask_path)
 
             session.load_session() 
 
@@ -193,7 +193,8 @@ class Dataset:
                         1: "breath_hold",
                         2: "valsalva",
                         3: "exercise",
-                        4: "cold_pressor"
+                        4: "cold_pressor",
+                        9: "setup"
                     }
                     if mask is not None:
                         start_idx = int(row_data.get('start', 0)) 
@@ -206,6 +207,7 @@ class Dataset:
                         if start_idx < end_idx:
                             beat_mask = mask[start_idx:end_idx]
                             majority_code = np.bincount(beat_mask).argmax()
+                            if majority_code == 99: print(f"Window {row['window_id']} in session {session.session_id} labeled as 'during_exercise' due to majority code 99 in activity mask.")
                             row['activity'] = labels.get(majority_code, "unknown")
                         else:
                             row['activity'] = "invalid_interval"
@@ -258,39 +260,3 @@ class Dataset:
                 session.signals[signal_name]._custom_fiducial_extractor = func
                 count += 1
         print(f"Applied custom extractor to {signal_name} across {count} sessions.")
-
-
-    # TODO: Review with ken, original methods which have not been implemented
-    
-    def annotate_cardiac_cycles_with_activities(self, *args, **kwargs):
-        pass
-
-    def save_features(self, *args, **kwargs):
-        pass
-
-    def save_quality_masks(self, *args, **kwargs):
-        pass
-
-    def save_dataset(self, *args, **kwargs):
-        pass
-
-    def load_dataset(self, *args, **kwargs):
-        pass
-
-    def load_sessions(self):
-        for session in self.sessions.values():
-            print(session.session_id)
-            session.load_session()
-
-    def preprocess_sessions(self, *args, **kwargs):
-        for session in self.sessions.values():
-            session.preprocess_signals(*args, **kwargs)
-    
-    def preprocess_data(self, *args, **kwargs):
-        pass
-
-    def get_quality_masks(self, *args, **kwargs):
-        pass
-
-    def get_activity_masks(self, *args, **kwargs):
-        pass  

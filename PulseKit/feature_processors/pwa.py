@@ -4,7 +4,7 @@ import numpy as np
 class PWA(Feature):
     NAME = "pulse_wave_analysis"
     NECESSARY_SIGNALS = []
-    POSSIBLE_SIGNALS = ["PPG_Finger_downsample", "PPG_Ear_downsample", "PPG_Wrist_downsample"]
+    POSSIBLE_SIGNALS = ["PPG_Finger", "PPG_Ear", "PPG_Wrist"]
     WINDOWING_TYPE = "cardiac_cycles"
 
     def compute(self, session, row_data):

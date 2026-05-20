@@ -43,7 +43,7 @@ class Session:
         signals_dict = {}
         
         for s in physiologicalSignals:
-            expected_path = os.path.join(self.session_dir, s.name)
+            expected_path = os.path.join(self.session_dir, f"{s.name}.npy")
             if os.path.exists(expected_path):
                 s_copy = copy.deepcopy(s)
                 s_copy.session_dir = self.session_dir

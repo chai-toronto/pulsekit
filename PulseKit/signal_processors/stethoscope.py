@@ -32,8 +32,8 @@ class Stethoscope(PhysiologicalSignal):
 
         envelope = np.abs(hilbert(segment))
         
-        # Find all peaks above noise floor, pick top two (150 ms distance)
-        all_peaks, properties = find_peaks(envelope, distance=int(0.15 * self.sampling_rate), height=np.mean(envelope))        
+        # Find all peaks above noise floor, pick top two (80 ms distance)
+        all_peaks, properties = find_peaks(envelope, distance=int(0.08 * self.sampling_rate), height=np.mean(envelope))        
         if len(all_peaks) < 2:
             return False
         heights = properties['peak_heights']

@@ -35,8 +35,9 @@ class ECG(PhysiologicalSignal):
 
     def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
         window = preprocessed[window_start:window_end]
-        if len(window) == 0: return False
-
+        if len(window) < int(0.3 * self.sampling_rate) or len(window) > int(1.5 * self.sampling_rate):
+            return False
+        
         try:
             tests = [
                 (np.std(window) > 0.001), 

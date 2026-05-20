@@ -9,15 +9,34 @@ class PPG(PhysiologicalSignal):
         return apply_butterworth_filter(processed, 15, "low", fs=self.sampling_rate)
 
     def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
-        # Safety for edge of signal
-        search_window_end = min(len(preprocessed), window_end + 500)
+        fs = self.sampling_rate
+        
+        # Buffer to catch the 'next' foot (Pulse transit time pushes the foot past the next ECG peak)
+        # Using 0.5 seconds to safely capture the downstream beat
+        search_window_end = min(len(preprocessed), window_end + int(fs * 0.5))
         clip = preprocessed[window_start:search_window_end]
         
-        # 1. Find Feet (Flip signal)
-        flipped_clip = -clip
-        flipped_mean = np.mean(flipped_clip)
-        feet, _ = find_peaks(flipped_clip, height=flipped_mean, distance=200)
+        if len(clip) < int(fs * 0.3): 
+            return {}
         
+        # 1. Find Feet using First Derivative Minima Search
+        ppg_diff = np.diff(clip)
+        
+        # Find steepest slopes (systolic upstrokes). 
+        # Distance ensures we don't catch dicrotic notches.
+        diff_peaks, _ = find_peaks(ppg_diff, height=np.max(ppg_diff)*0.2, distance=int(fs * 0.4))
+        
+        feet = []
+        for dp in diff_peaks:
+            foot_idx = dp
+            search_limit = max(0, dp - int(fs * 0.3)) # Look back max 300ms
+            
+            # Trace backward until the derivative drops to zero or below
+            while foot_idx > search_limit and ppg_diff[foot_idx] > 0:
+                foot_idx -= 1
+                
+            feet.append(foot_idx)
+            
         if len(feet) < 2:
             return {} # Failed to find cycle boundaries
 
@@ -25,10 +44,11 @@ class PPG(PhysiologicalSignal):
         foot2 = feet[1]
         
         # 2. Find Systolic Peak
+        # head_idx is relative to the start of foot1
         head_idx = np.argmax(preprocessed[window_start + foot1 : window_start + foot2])
         
         # 3. Derivative Analysis for Morphological Points (a, b, c...)
-        segment_start_idx = max(0, window_start + foot1 - 200)
+        segment_start_idx = max(0, window_start + foot1 - int(fs * 0.2)) 
         segment_end_idx = window_start + foot2
         segment = preprocessed[segment_start_idx : segment_end_idx]
 

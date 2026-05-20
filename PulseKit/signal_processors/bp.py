@@ -27,6 +27,7 @@ class BP(PhysiologicalSignal):
         with standard signal cleaning (NaNs).
         """
         raw_data = self.data
+    
         
         # 1. Load the pre-calculated NIBP mask from the session folder
         external_mask = self._load_external_nibp_mask()
@@ -40,7 +41,7 @@ class BP(PhysiologicalSignal):
         # 4. Combine Masks
         # external_mask is True for GOOD data, so we invert it for the ARTIFACT mask
         # self.artifact_mask will be True where data should be REJECTED
-        self.artifact_mask = (~external_mask) | cleaned_mask
+        self.artifact_mask = (~external_mask) | cleaned_mask 
 
         # 5. Generate integral for fast window quality lookups
         self.artifact_integral = np.cumsum(self.artifact_mask.astype(int))
@@ -50,13 +51,15 @@ class BP(PhysiologicalSignal):
 
     def _load_external_nibp_mask(self) -> np.ndarray:
         """
-        Loads the consolidated NIBP mask (nibp_mask.npy) from the session directory.
+        Loads the consolidated NIBP mask (CNAP_Annotations.npy) from the session directory.
         If the file is missing, returns an all-True (all good) mask of the same length.
         """
-        mask_path = os.path.join(self.session_dir, "nibp_mask")
+        mask_path = os.path.join(self.session_dir, "CNAP_Annotations.npy")
         
         if os.path.exists(mask_path):
-            return np.fromfile(mask_path, dtype=bool)
+            mask = np.load(mask_path)
+            mask = np.asarray(mask, dtype=bool)
+            return mask
         
         # Fallback: If no mask found, assume all data is good to prevent crashes
         return np.ones(len(self.data), dtype=bool)
@@ -83,8 +86,6 @@ class BP(PhysiologicalSignal):
         val_midpoint = window_data[mid_idx]
 
         return {
-            f"{self.name}_mean": val_mean,
-            f"{self.name}_median": val_median,
             f"{self.name}_midpoint": val_midpoint
         }
 
