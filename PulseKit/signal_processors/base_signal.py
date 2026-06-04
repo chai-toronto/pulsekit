@@ -156,6 +156,37 @@ class PhysiologicalSignal:
         else:
             return None
 
+    def has_removed_stretch(self, window_start: int, window_end: int, min_run_samples: Optional[int] = None) -> bool:
+        raw = self.data
+        if raw is None:
+            return False
+
+        start = max(0, int(window_start))
+        end = min(len(raw), int(window_end))
+        if end <= start:
+            return False
+
+        segment = raw[start:end]
+        if segment.size == 0:
+            return False
+
+        if min_run_samples is None:
+            min_run_samples = max(10, int(0.01 * self.sampling_rate))
+
+        zero_mask = np.asarray(segment == 0)
+        if not np.any(zero_mask):
+            return False
+
+        padded = np.concatenate(([0], zero_mask.view(np.int8), [0]))
+        changes = np.diff(padded)
+        run_starts = np.flatnonzero(changes == 1)
+        run_ends = np.flatnonzero(changes == -1)
+        if run_starts.size == 0:
+            return False
+
+        run_lengths = run_ends - run_starts
+        return bool(np.any(run_lengths >= min_run_samples))
+
 
     def check_quality(self, preprocessed, window_start: int, window_end: int, fiducials: dict, windowing_type: str) -> bool:
         '''
@@ -176,6 +207,9 @@ class PhysiologicalSignal:
         :return: returns whether the signal segment passes quality check
         :rtype: bool
         '''
+        if self.has_removed_stretch(window_start, window_end):
+            return False
+
         if self._custom_quality_check:
             return self._custom_quality_check(self, preprocessed, window_start, window_end, fiducials, windowing_type)
         
@@ -185,4 +219,3 @@ class PhysiologicalSignal:
             return self.check_quality_fixed_window(preprocessed, window_start, window_end, fiducials)
         else:
             raise NotImplementedError(f"Quality check for windowing type '{windowing_type}' is not implemented.")
-
