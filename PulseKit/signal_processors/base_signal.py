@@ -157,6 +157,14 @@ class PhysiologicalSignal:
             return None
 
     def has_removed_stretch(self, window_start: int, window_end: int, min_run_samples: Optional[int] = None) -> bool:
+        '''
+        Checks if there is a stretch of zeros in the raw signal data within the specified window, which may indicate a removed or corrupted segment.
+        :param self: PhysiologicalSignal object
+        :param window_start: int, index of window start
+        :param window_end: int, index of window end
+        :param min_run_samples: Optional[int], minimum number of consecutive zeros to consider as a removed stretch (defaults to 10 samples or 1% of sampling rate)
+        :return: bool, True if a removed stretch is detected, False otherwise
+        '''
         raw = self.data
         if raw is None:
             return False

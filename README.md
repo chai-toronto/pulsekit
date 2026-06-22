@@ -1,6 +1,6 @@
 # **PulseKit**
 
-PulseKit is a data processing library for use alongside the CRampeD (Cardiac Repository of audio, motion, pressure, and electrocardiography data) dataset.
+PulseKit is a data processing library for use alongside the Auricle dataset.
 It enables a data pipeline to be built, and the user can select which signals they wish to include.
 The dataset object, when initialized, will create Session objects for each data session, and within each of those, a specific instance of each PhysiologicalSignal object, which you have included in your pipeline (one of PPG, ECG, DigitalStethscope, etc.).
 The session objects will store information about the subject, such as height, weight, age, gender, and participant_id.

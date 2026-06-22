@@ -4,6 +4,7 @@ from .feature_processors import Feature
 import pandas as pd
 import os
 import numpy as np
+import json
 
 
 class Dataset:
@@ -260,3 +261,47 @@ class Dataset:
                 session.signals[signal_name]._custom_fiducial_extractor = func
                 count += 1
         print(f"Applied custom extractor to {signal_name} across {count} sessions.")
+
+    def load_config(self, config_path: str) -> dict:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config
+
+    def save_config(self, config_path: str, new_keys: dict) -> None:
+        config_ = self.load_config(config_path)
+        config_.update(new_keys)
+        with open(config_path, 'w') as f:
+            json.dump(config_, f, indent=4)
+
+    def save_dataset_to_numpy(self, save_dir: str, sample_rate: int = 1000, signal_list: list[str] = []):
+        
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        load_order = ["timestamps"]
+        if len(signal_list) == 0:
+            signal_list = list(self.sessions.values())[0].signals.keys()
+        
+        for session in self.sessions.values():
+            session.load_session()
+            #write timestamps
+            timestamps = np.arange(0, session.length).astype(float) / sample_rate
+            session_data = {"timestamps": timestamps}
+
+            #write gather signal data
+            for signal_name in signal_list:
+                if signal_name not in load_order:
+                    load_order.append(signal_name)
+                if signal_name not in session.signals:
+                    print(f"Signal {signal_name} not found in session {session.session_id}.")
+                    session_data[signal_name] = np.full(session.length, 0).tolist()  # Fill with NaN if signal is missing
+                else:
+                    data = session.signals[signal_name].preprocess()
+                    session_data[signal_name] = data
+        
+            #Make sure the load order is consistent across sessions and save config
+            session_array = np.stack([session_data[key] for key in load_order], axis=1)
+            save_path = os.path.join(save_dir, f"{session.session_id}_data.npy")
+            np.save(save_path, session_array)
+            session.unload_session()
+
+        self.save_config(os.path.join(save_dir, "default_visualization_config.json"), {"channel_names": load_order[1:]})

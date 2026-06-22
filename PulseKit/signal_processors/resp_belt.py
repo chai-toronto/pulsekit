@@ -6,8 +6,9 @@ from .base_signal import PhysiologicalSignal
 
 class RespirationBelt(PhysiologicalSignal):
     def preprocess(self):
-        processed = apply_butterworth_filter(self.data, 0.1, "high", fs=self.sampling_rate)
-        return apply_butterworth_filter(processed, 0.5, "low", fs=self.sampling_rate)
+        # processed = apply_butterworth_filter(self.data, 0.1, "high", fs=self.sampling_rate)
+        # apply_butterworth_filter(processed, 25, "low", fs=self.sampling_rate)
+        return self.data
 
     def extract_cardiac_cycle_fiducials(self, preprocessed, window_start: int, window_end: int):
         return {f"{self.name}_RI": "N/A"}

@@ -31,7 +31,7 @@ class Session:
         self.data_directory = data_directory
         self.session_dir = os.path.join(data_directory, sessionId)
         self.windows = None
-        self.participant_id = sessionId.split("_")[0]
+        self.participant_id = self.get_session_id(sessionId)
         demos = self.get_participant_demographics()
         
         self.height = demos.get("Height")
@@ -52,6 +52,24 @@ class Session:
         self.signals = SignalsWrapper(signals_dict)
         self.length = self.get_session_length()
         
+    def get_session_id(self, dir_) -> str:
+        '''
+        Get session tag from directory name. Expects directory name to include a integer participant number separated from pre/suffix by "_".
+        
+        :param self: Session object
+        :param dir_: str, directory path
+        :return: str, session tag
+        '''        
+        tag = None
+        for t in  dir_.split("_"):
+            if t.isdigit():
+                tag = t
+        if not tag:
+            print(f"Warning: Could not extract participant ID from session directory name: {dir_}")
+            tag = -1
+        else:
+            return tag
+
 
     def get_participant_demographics(self) -> dict:
         '''
@@ -71,7 +89,9 @@ class Session:
 
         try:
             df = pd.read_csv(load_dir)
-            match_mask = df['Participant'].astype(str).str.lower().str.replace("rp", "").str.strip() == self.participant_id
+            demo_tag = df['Participant'].astype(str).str.lower().str.replace("rp", "").replace("hfc", "").replace("hc", "").str.strip()
+            dir_tag = self.participant_id.lower()
+            match_mask = demo_tag == dir_tag
             participant_row = df[match_mask]
             
             if not participant_row.empty:
