@@ -41,7 +41,7 @@ test_dataset = Dataset(
     datasetName="MyBPProject",
     sessionIds=["41", "41_2"], # The specific sessions to include
     signals=signals,
-    data_directory="path/to/CRampeD_data"
+    data_directory="path/to/Auricle_data"
 )
 
 # 3. Define the windows (Cardiac Cycles or Fixed Length)
