@@ -183,23 +183,39 @@ class Session:
         
         self.windows = np.column_stack((peaks[:-1], peaks[1:]))
     
-    def get_fixed_windows(self, length, **kwargs) -> None:
+    def get_fixed_windows(self, length, overlap=0.0, **kwargs) -> None:
         '''
-        Used instead of get cardiac cycles for fixed windowing approaches such as deep learning models
-        Stores indices in self.windows
+        Used instead of get cardiac cycles for fixed windowing approaches such as deep learning models.
+        Stores indices in self.windows.
         
-        :param self: Session object
-        :param length: int, length of each window in seconds
-        :param kwargs: Additional arguments (not used)
+        :param length: int or float, length of each window in seconds.
+        :param overlap: float, fraction of the window that overlaps with the previous one (0.0 to 0.99).
+        :param kwargs: Additional arguments (not used).
         '''
-        signal = self.signals["ECG_downsample"]
-        sampling_rate = signal.sampling_rate
+        if not (0.0 <= overlap < 1.0):
+            raise ValueError("Overlap must be between 0.0 (inclusive) and 1.0 (exclusive).")
+
+        available_signals = list(self.signals.values())
+        if not available_signals:
+            raise ValueError("No signals available in this session to divide into windows.")
+
+        first_signal = available_signals[0]
+        
+        sampling_rate = first_signal.sampling_rate
         window_size = int(length * sampling_rate)
         
-        total_length = signal.data.shape[0]
+        # Calculate how many samples to step forward for each new window
+        step_size = int(window_size * (1.0 - overlap))
+        
+        # Fallback to prevent an infinite loop if window/overlap math results in a 0 step
+        if step_size < 1:
+            step_size = 1
+        
+        total_length = self.length
         
         windows = []
-        for start in range(0, total_length - window_size + 1, window_size):
+        # Advance by 'step_size' rather than 'window_size'
+        for start in range(0, total_length - window_size + 1, step_size):
             end = start + window_size
             windows.append((start, end))
         
