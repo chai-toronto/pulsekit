@@ -153,6 +153,8 @@ class PhysiologicalSignal:
         
         if windowing_type == "cardiac_cycles":
             return self.extract_cardiac_cycle_fiducials(preprocessed, window_start, window_end)
+        elif windowing_type == "fixed_windows":
+            return self.extract_fixed_window_fiducials(preprocessed, window_start, window_end)
         else:
             return None
 

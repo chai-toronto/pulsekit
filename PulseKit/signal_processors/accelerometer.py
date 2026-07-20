@@ -1,7 +1,8 @@
 from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import apply_butterworth_filter
 import numpy as np
-from scipy.signal import find_peaks, hilbert
+from scipy.signal import find_peaks, hilbert, welch
+from scipy.stats import pearsonr
 
 class Accelerometer(PhysiologicalSignal):
     def preprocess(self):
@@ -33,40 +34,155 @@ class Accelerometer(PhysiologicalSignal):
     def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
         im_local = fiducials.get(f"{self.name}_IM", 0) - window_start
         ao_local = fiducials.get(f"{self.name}_AO", 0) - window_start
-            
-        # 3. PEP Sanity Bounds (Pre-Ejection Period)
-        # Your R-AO mean is ~98 ms (Std ~11.6 ms). 
-        # A range of 60 to 150 ms covers +/- 3 standard deviations while aligning w literature
+        
         pep_ms = (ao_local / self.sampling_rate) * 1000
         if pep_ms < 60 or pep_ms > 150:
             return False
             
-        # 4. IVCT Sanity Bounds (Isovolumetric Contraction Time)
-        # Your IM-AO mean is ~62.5 ms (Std ~6 ms). 
-        # Extending the ceiling to 90 ms easily captures +/- 4 standard deviations, but filters outliers
         ivct_ms = ((ao_local - im_local) / self.sampling_rate) * 1000
         if ivct_ms < 20 or ivct_ms > 90:
             return False
 
-        # 5. Amplitude Check (Noise Floor)
-        # Ensure the AO peak isn't just a tiny ripple in a noisy signal
-        #window = preprocessed[window_start:window_end]
-        #if len(window) > 0:
-        #    ao_amp = np.abs(preprocessed[int(fiducials[f"{self.name}_AO"])])
-        #    mean_abs_amp = np.mean(np.abs(window))
-        #    if ao_amp < 1.5 * mean_abs_amp: # AO should be a prominent local event
-        #        return False
-
         return True
 
-
-    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
-        # basic placeholder to ensure window has data that is not 60Hz line noise
+    
+    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict) -> float:
+        '''
+        Calculates a Signal Quality Index (SQI) for a fixed multi-beat SCG window
+        using Beat-by-Beat Adaptive Template Matching. Returns a float between 0.0 and 1.0.
+        Anchors directly on the SCG 'AO peak' within autonomous Hilbert energy bursts.
+        '''
         sig = preprocessed[window_start:window_end]
-        if np.ptp(sig) < 0.001: 
-            return False 
-        fft_mags = np.abs(np.fft.rfft(sig))
-        hz_60_bin = int(60 * len(sig) / self.sampling_rate)
-        if fft_mags[hz_60_bin] > (np.mean(fft_mags) * 10):
-            return False
-        return True
+        fs = self.sampling_rate
+        
+        if len(sig) < fs:
+            return 0.0
+        if not np.isfinite(sig).all():
+            return 0.0
+
+        # Use the Hilbert envelope to locate the high-frequency systolic energy bursts
+        env = np.abs(hilbert(sig))
+        height_req = np.mean(env)
+        min_peak_dist = int(0.4 * fs) # Assumes max HR ~150 BPM
+        
+        complex_centers, _ = find_peaks(env, height=height_req, distance=min_peak_dist)
+        
+        true_ao_peaks = []
+        for center in complex_centers:
+            # Look locally around the energy burst to find the true physiological peaks
+            search_start = max(0, center - int(0.15 * fs))
+            search_end = min(len(sig), center + int(0.15 * fs))
+            local_region = sig[search_start:search_end]
+            
+            if len(local_region) == 0: 
+                continue
+                
+            pos_peaks, _ = find_peaks(local_region, distance=10, prominence=0.5 * np.mean(np.abs(local_region)))
+            
+            if len(pos_peaks) > 0:
+                ao_idx = pos_peaks[np.argmax(local_region[pos_peaks])]
+            else:
+                ao_idx = np.argmax(local_region)
+                
+            true_ao_peaks.append(search_start + ao_idx)
+            
+        # Require at least 3 valid beats to form a reliable consensus template
+        if len(true_ao_peaks) < 3:
+            return 0.0
+            
+        pre_samples = int(0.20 * fs)
+        post_samples = int(0.40 * fs)
+        
+        beat_matrix = []
+        for peak in true_ao_peaks:
+            if peak - pre_samples < 0 or peak + post_samples >= len(sig):
+                continue
+            beat_segment = sig[peak - pre_samples : peak + post_samples]
+            beat_matrix.append(beat_segment)
+            
+        beat_matrix = np.array(beat_matrix)
+        
+        if len(beat_matrix) < 3:
+            return 0.0
+            
+        local_template = np.median(beat_matrix, axis=0)
+        
+        correlations = []
+        for beat in beat_matrix:
+            r, _ = pearsonr(beat, local_template)
+            
+            if np.isnan(r):
+                r = 0.0
+            # Clip negative correlations to 0
+            correlations.append(max(0.0, r))
+            
+        window_sqi = float(np.mean(correlations))
+        
+        return window_sqi
+    
+    def extract_fixed_window_fiducials(self, preprocessed, window_start: int, window_end: int):
+        """
+        Extracts heart rate from accelerometer within the given window using both
+        Power Spectral Density (PSD) and Inter-Beat Interval (IBI) peak detection.
+        
+        param self: accelerometer object
+        param preprocessed: np.ndarray, preprocessed accelerometer signal data
+        param window_start: int, index of window start
+        param window_end: int, index of window end
+        """
+        from scipy.signal import welch, find_peaks, hilbert
+        import numpy as np
+
+        sig = preprocessed[window_start:window_end]
+        fs = self.sampling_rate
+        
+        # Failsafe for empty windows
+        if len(sig) == 0:
+            return {f"{self.name}_HR": np.nan}
+
+        
+        env = np.abs(hilbert(sig))
+        win_len = int(0.15 * fs)
+        smoothed_env = np.convolve(env, np.ones(win_len)/win_len, mode='same')
+        
+        roll_len = int(fs * 1.5)
+        local_mean = np.convolve(smoothed_env, np.ones(roll_len)/roll_len, mode='same')
+        
+        dynamic_threshold = local_mean * 1.2 + 1e-4
+        min_peak_dist = int(0.4 * fs) # Assumes max HR ~150 BPM
+        
+        complex_centers, _ = find_peaks(smoothed_env, height=dynamic_threshold, distance=min_peak_dist)
+        
+        true_ao_peaks = []
+        search_radius = int(0.15 * fs)
+        
+        for center in complex_centers:
+            search_start = max(0, center - search_radius)
+            search_end = min(len(sig), center + search_radius)
+            local_region = sig[search_start:search_end]
+            
+            if len(local_region) == 0: 
+                continue
+                
+            local_ptp = np.ptp(local_region)
+            if local_ptp == 0: 
+                continue
+                
+            pos_peaks, _ = find_peaks(local_region, distance=int(0.05 * fs), prominence=0.2 * local_ptp)
+            
+            if len(pos_peaks) > 0:
+                # Anchor on the highest prominent peak in the local burst
+                ao_idx = pos_peaks[np.argmax(local_region[pos_peaks])]
+                true_ao_peaks.append(search_start + ao_idx)
+            
+        # Calculate HR from IBI
+        if len(true_ao_peaks) > 1:
+            ibis_in_samples = np.diff(true_ao_peaks)
+            median_ibi_samples = np.median(ibis_in_samples)
+            hr_bpm_ibi = float(60.0 * fs / median_ibi_samples)
+        else:
+            hr_bpm_ibi = np.nan
+
+        return {
+            f"{self.name}_HR": hr_bpm_ibi
+        }

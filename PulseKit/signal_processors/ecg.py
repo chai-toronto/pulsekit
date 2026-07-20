@@ -1,9 +1,9 @@
 from .signal_processing_utils import apply_butterworth_filter
 import numpy as np
-from scipy.stats import kurtosis
+from scipy.stats import kurtosis, pearsonr
 from typing import Dict, Any
 from .base_signal import PhysiologicalSignal
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, welch
 
 class ECG(PhysiologicalSignal):
     def preprocess(self):
@@ -47,14 +47,122 @@ class ECG(PhysiologicalSignal):
             return all(tests)
         except Exception:
             return False
-        
-    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
-        # basic placeholder to ensure window has data that is not 60Hz line noise
+
+    
+    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict) -> float:
+        '''
+        Calculates a Signal Quality Index (SQI) for a fixed multi-beat window
+        using Beat-by-Beat Adaptive Template Matching. Returns a float between 0.0 and 1.0.
+        '''
         sig = preprocessed[window_start:window_end]
-        if np.ptp(sig) < 0.001: 
-            return False 
-        fft_mags = np.abs(np.fft.rfft(sig))
-        hz_60_bin = int(60 * len(sig) / self.sampling_rate)
-        if fft_mags[hz_60_bin] > (np.mean(fft_mags) * 10):
-            return False
-        return True
+        
+        # Local Peak Detection 
+        try:
+            detection_signal = apply_butterworth_filter(sig, 5, "high", fs=self.sampling_rate)
+            detection_signal = apply_butterworth_filter(detection_signal, 15, "low", fs=self.sampling_rate)
+        except ValueError:
+            # Failsafe if window is too short for filter order
+            return 0.0
+            
+        squared_signal = detection_signal ** 2
+        height_req = np.mean(squared_signal)
+        min_peak_dist = int(0.4 * self.sampling_rate) 
+        rough_peaks, _ = find_peaks(squared_signal, distance=min_peak_dist, height=height_req)
+        
+        true_peaks = []
+        search_window = int(0.05 * self.sampling_rate) # +/- 50ms window 
+        
+        for p in rough_peaks:
+            start = max(0, p - search_window)
+            end = min(len(sig), p + search_window)
+            search_slice = sig[start:end]
+            if len(search_slice) > 0:
+                local_max_idx = np.argmax(search_slice)
+                true_peaks.append(start + local_max_idx)
+
+        # Require at least 3 valid beats to form a reliable consensus template
+        if len(true_peaks) < 3:
+            return 0.0
+            
+        # Beat Segmentation
+        pre_samples = int(0.25 * self.sampling_rate)
+        post_samples = int(0.40 * self.sampling_rate)
+        
+        beat_matrix = []
+        for peak in true_peaks:
+            # Discard beats that fall off the edge of the fixed window
+            if peak - pre_samples < 0 or peak + post_samples >= len(sig):
+                continue
+            beat_segment = sig[peak - pre_samples : peak + post_samples]
+            beat_matrix.append(beat_segment)
+            
+        beat_matrix = np.array(beat_matrix)
+        
+        # Need at least 3 strictly contained beats for the median template
+        if len(beat_matrix) < 3:
+            return 0.0
+            
+        # Generate Median Template
+        local_template = np.median(beat_matrix, axis=0)
+        
+        # Individual Beat Correlation
+        correlations = []
+        for beat in beat_matrix:
+            r, _ = pearsonr(beat, local_template)
+            
+            # Handle perfectly flat signals resulting in NaN correlation
+            if np.isnan(r):
+                r = 0.0
+            # Clip negative correlations to 0 for SQI purposes
+            correlations.append(max(0.0, r))
+            
+        # Window Aggregation
+        window_sqi = float(np.mean(correlations))
+        
+        return window_sqi
+    
+    def extract_fixed_window_fiducials(self, preprocessed, window_start: int, window_end: int):
+
+        sig = preprocessed[window_start:window_end]
+        
+        # Failsafe for empty windows
+        if len(sig) == 0:
+            return {f"{self.name}_HR": np.nan}
+
+        # getting HR through IBI by finding peaks
+        try:
+            detection_signal = apply_butterworth_filter(sig, 5, "high", fs=self.sampling_rate)
+            detection_signal = apply_butterworth_filter(detection_signal, 15, "low", fs=self.sampling_rate)
+        except ValueError:
+            # Failsafe if window is too short for filter order
+            return 0.0
+            
+        squared_signal = detection_signal ** 2
+        height_req = np.mean(squared_signal)
+        min_peak_dist = int(0.4 * self.sampling_rate) 
+        rough_peaks, _ = find_peaks(squared_signal, distance=min_peak_dist, height=height_req)
+        
+        true_peaks = []
+        search_window = int(0.05 * self.sampling_rate) # +/- 50ms window 
+        
+        for p in rough_peaks:
+            start = max(0, p - search_window)
+            end = min(len(sig), p + search_window)
+            search_slice = sig[start:end]
+            if len(search_slice) > 0:
+                local_max_idx = np.argmax(search_slice)
+                true_peaks.append(start + local_max_idx)
+        
+        # Calculate Inter-Beat Intervals (IBIs) in seconds
+        ibi_intervals = np.diff(true_peaks) / self.sampling_rate
+
+        if len(ibi_intervals) > 0:
+            # Calculate average IBI and convert to BPM
+            avg_ibi = np.mean(ibi_intervals)
+            hr_bpm_ibi = 60.0 / avg_ibi
+        else:
+            hr_bpm_ibi = np.nan
+        
+        return {
+            f"{self.name}_HR": hr_bpm_ibi
+            }

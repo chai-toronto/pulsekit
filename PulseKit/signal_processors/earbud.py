@@ -1,6 +1,8 @@
 from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import apply_butterworth_filter, extract_fiducial_points
+from scipy.signal import find_peaks, welch, hilbert
 import numpy as np
+from scipy.stats import pearsonr
 
 class Earbud(PhysiologicalSignal):
     def preprocess(self):
@@ -71,14 +73,133 @@ class Earbud(PhysiologicalSignal):
         except Exception:
             return False
 
-    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
-        # basic placeholder to ensure window has data that is not 60Hz line noise
+    
+    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict) -> float:
+        '''
+        Calculates a Signal Quality Index (SQI) for a fixed multi-beat window
+        using Beat-by-Beat Adaptive Template Matching. Returns a float between 0.0 and 1.0.
+        Anchors directly on the Earbud 'a peak' (local maxima).
+        '''
         sig = preprocessed[window_start:window_end]
-        if np.ptp(sig) < 0.001: 
-            return False 
-        fft_mags = np.abs(np.fft.rfft(sig))
-        hz_60_bin = int(60 * len(sig) / self.sampling_rate)
-        if fft_mags[hz_60_bin] > (np.mean(fft_mags) * 10):
-            return False
-        return True
+        fs = self.sampling_rate
+        
+        # Failsafe for extremely short windows
+        if len(sig) < fs:
+            return 0.0
+        
+        env = np.abs(hilbert(sig))
+        win_len = int(fs * 1.5)
+        local_mean = np.convolve(env, np.ones(win_len)/win_len, mode='same')
+        
+        dynamic_threshold = local_mean * 1.5 + 1e-4
+        min_peak_dist = int(0.4 * fs) # Assumes max HR ~150 BPM
+        
+        # Detect energy bursts (complex centers)
+        complex_centers, _ = find_peaks(env, height=dynamic_threshold, distance=min_peak_dist)
+        
+        a_peaks = []
+        search_radius = int(0.15 * fs) # Search +/- 150ms around the energy burst
+        
+        for center in complex_centers:
+            start = max(0, center - search_radius)
+            end = min(len(sig), center + search_radius)
+            local_region = sig[start:end]
+            
+            if len(local_region) > 0:
+                a_peaks.append(start + np.argmax(local_region))
+        
+        # Require at least 3 valid beats to form a reliable consensus template
+        if len(a_peaks) < 3:
+            return 0.0
+            
+        pre_samples = int(0.30 * fs)
+        post_samples = int(0.70 * fs)
+        
+        beat_matrix = []
+        for peak in a_peaks:
+            # Discard beats that fall off the edge of the fixed window
+            if peak - pre_samples < 0 or peak + post_samples >= len(sig):
+                continue
+            beat_segment = sig[peak - pre_samples : peak + post_samples]
+            beat_matrix.append(beat_segment)
+            
+        beat_matrix = np.array(beat_matrix)
+        
+        if len(beat_matrix) < 3:
+            return 0.0
+            
+        # Generate Median Template
+        local_template = np.median(beat_matrix, axis=0)
+        
+        # Individual Beat Correlation
+        correlations = []
+        for beat in beat_matrix:
+            r, _ = pearsonr(beat, local_template)
+            
+            if np.isnan(r):
+                r = 0.0
+            # Clip negative correlations to 0
+            correlations.append(max(0.0, r))
+            
+        # Window Aggregation
+        window_sqi = float(np.mean(correlations))
+        
+        return window_sqi
+    
+    def extract_fixed_window_fiducials(self, preprocessed, window_start: int, window_end: int):
+        """
+        Extracts heart rate from earbud within the given window using both
+        Power Spectral Density (PSD) and Inter-Beat Interval (IBI) peak detection.
+        """
+        from scipy.signal import welch, find_peaks, hilbert
+        import numpy as np
+
+        sig = preprocessed[window_start:window_end]
+        fs = self.sampling_rate
+        
+        # Failsafe for empty windows
+        if len(sig) == 0:
+            return {f"{self.name}_HR": np.nan}
+            
+        env = np.abs(hilbert(sig))
+        
+        # Create a 1.5 second moving average to establish the local baseline energy
+        win_len = int(fs * 1.5)
+        local_mean = np.convolve(env, np.ones(win_len)/win_len, mode='same')
+        
+        dynamic_threshold = local_mean * 1.5 + 1e-4
+        min_peak_dist = int(0.4 * fs) # Assumes max HR ~150 BPM
+        
+        complex_centers, _ = find_peaks(env, height=dynamic_threshold, distance=min_peak_dist)
+        
+        true_peaks = []
+        search_radius = int(0.15 * fs)
+        
+        for center in complex_centers:
+            start = max(0, center - search_radius)
+            end = min(len(sig), center + search_radius)
+            local_region = sig[start:end]
+            
+            if len(local_region) == 0:
+                continue
+                
+            local_peaks, _ = find_peaks(local_region, distance=int(0.05 * fs), prominence=0.2 * np.mean(np.abs(local_region)))
+            
+            if len(local_peaks) > 0:
+                best_peak_idx = local_peaks[np.argmax(local_region[local_peaks])]
+                true_peaks.append(start + best_peak_idx)
+            else:
+                true_peaks.append(start + np.argmax(local_region))
+            
+        # Calculate HR from IBI
+        if len(true_peaks) > 1:
+            ibis_in_samples = np.diff(true_peaks)
+            median_ibi_samples = np.median(ibis_in_samples)
+            hr_bpm_ibi = float(60.0 * fs / median_ibi_samples)
+        else:
+            hr_bpm_ibi = np.nan
+
+        return {
+            f"{self.name}_HR": hr_bpm_ibi
+        }
     

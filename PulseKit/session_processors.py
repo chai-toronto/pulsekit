@@ -20,6 +20,7 @@ class Session:
     :param data_directory: str, path to the main data directory
     :param windows: np.ndarray or None, start and end indices of windows in the session
     :param participant_id: str, identifier for the participant
+    :param demographics: dict, participant demographics loaded from CSV
     :param height: float or None, participant height in cm
     :param weight: float or None, participant weight in kg
     :param age: int or None, participant age in years
@@ -32,12 +33,13 @@ class Session:
         self.session_dir = os.path.join(data_directory, sessionId)
         self.windows = None
         self.participant_id = self.get_session_id(sessionId)
-        demos = self.get_participant_demographics()
+        self.demographics = self.get_participant_demographics()
         
-        self.height = demos.get("Height")
-        self.weight = demos.get("Weight")
-        self.age = demos.get("Age")
-        self.gender = demos.get("Gender")
+        self.height = self.demographics.get("Height")
+        self.weight = self.demographics.get("Weight")
+        self.age = self.demographics.get("Age")
+        self.gender = self.demographics.get("Gender")
+
 
         # creating a session-specific copy of each signal object present in the session and passing in the directory
         signals_dict = {}
@@ -222,7 +224,7 @@ class Session:
         self.windows = np.array(windows, dtype=np.int64)
 
 
-    def save_fiducials(self, new_data_df: pd.DataFrame) -> None:
+    def save_fiducials(self, new_data_df: pd.DataFrame, segments_filename: str = "segments.csv") -> None:
         '''
         Saves or updates fiducials CSV file for this session.
         
@@ -230,7 +232,7 @@ class Session:
         :param new_data_df: new fiducials data to save
         :type new_data_df: pd.DataFrame
         '''
-        file_path = os.path.join(self.data_directory, self.session_id, "segments.csv")
+        file_path = os.path.join(self.data_directory, self.session_id, segments_filename)
         
         if os.path.exists(file_path):
             existing_df = pd.read_csv(file_path)

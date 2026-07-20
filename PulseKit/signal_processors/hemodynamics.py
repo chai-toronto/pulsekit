@@ -31,6 +31,32 @@ class Hemodynamics(PhysiologicalSignal):
             f"{self.name}_median": val_median,
             f"{self.name}_midpoint": val_midpoint
         }
+    
+    def extract_fixed_window_fiducials(self, preprocessed, window_start: int, window_end: int) -> dict:
+        """
+        Extracts Mean, Midpoint, and Median from the BP signal within the given window.
+
+        :param self: BP object
+        :param preprocessed: np.ndarray, preprocessed BP signal data
+        :param window_start: int, index of window start
+        :param window_end: int, index of window end
+        :return: dict, extracted fiducials
+        """
+        window_data = preprocessed[window_start:window_end]
+        
+        if len(window_data) == 0:
+            return {"mean": np.nan, "midpoint": np.nan, "median": np.nan}
+        
+        val_mean = np.mean(window_data)
+        val_median = np.median(window_data)
+        mid_idx = len(window_data) // 2
+        val_midpoint = window_data[mid_idx]
+
+        return {
+            f"{self.name}_mean": val_mean,
+            f"{self.name}_median": val_median,
+            f"{self.name}_midpoint": val_midpoint
+        }
 
     def check_quality_cardiac_cycle(self, preprocessed, window_start: int, window_end: int, fiducials: dict) -> bool:
         '''

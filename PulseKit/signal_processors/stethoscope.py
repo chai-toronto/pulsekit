@@ -1,7 +1,8 @@
 from .base_signal import PhysiologicalSignal
 from .signal_processing_utils import apply_butterworth_filter
-from scipy.signal import find_peaks, hilbert
+from scipy.signal import find_peaks, hilbert, welch
 import numpy as np
+from scipy.stats import pearsonr
 
 class Stethoscope(PhysiologicalSignal):
     def preprocess(self):
@@ -59,13 +60,136 @@ class Stethoscope(PhysiologicalSignal):
 
         return True
     
-    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict):
-        # basic placeholder to ensure window has data that is not 60Hz line noise
+    def check_quality_fixed_window(self, preprocessed, window_start: int, window_end: int, fiducials: dict) -> float:
+        '''
+        Calculates a Signal Quality Index (SQI) for a fixed PCG window.
+        Uses a fused-envelope approach to ensure S1 and S2 remain paired, 
+        anchors strictly on the S1 onset, and correlates the envelopes to prevent phase mismatch.
+        '''
         sig = preprocessed[window_start:window_end]
-        if np.ptp(sig) < 0.001: 
-            return False 
-        fft_mags = np.abs(np.fft.rfft(sig))
-        hz_60_bin = int(60 * len(sig) / self.sampling_rate)
-        if fft_mags[hz_60_bin] > (np.mean(fft_mags) * 10):
-            return False
-        return True
+        fs = self.sampling_rate
+        
+        if len(sig) < fs or not np.isfinite(sig).all():
+            return 0.0
+
+        # Generate the Envelope
+        env = np.abs(hilbert(sig))
+        win_len = int(0.2 * fs)
+        smoothed_env = np.convolve(env, np.ones(win_len)/win_len, mode='same')
+        
+    
+        min_peak_dist = int(0.4 * fs)
+        centers, _ = find_peaks(smoothed_env, distance=min_peak_dist, prominence=0.2 * np.mean(smoothed_env))
+        
+        s1_anchors = []
+        for c in centers:
+            search_start = max(0, c - int(0.25 * fs))
+            # Widened search end to 0.20s to ensure the full hump is captured
+            search_end = min(len(env), c + int(0.20 * fs)) 
+            local_env = env[search_start:search_end]
+            
+            if len(local_env) == 0:
+                continue
+                
+            # Find all distinct peaks in the hump without strict amplitude filtering yet
+            local_peaks, _ = find_peaks(local_env, distance=int(0.08 * fs))
+            
+            # Keep peaks that are at least 25% of the loudest sound in this specific heartbeat
+            valid_peaks = [p for p in local_peaks if local_env[p] > 0.25 * np.max(local_env)]
+            
+            if len(valid_peaks) > 0:
+                s1_anchors.append(search_start + valid_peaks[0])
+            else:
+                s1_anchors.append(search_start + np.argmax(local_env))
+                
+        if len(s1_anchors) < 3:
+            return 0.0
+            
+        # Beat Segmentation
+        pre_samples = int(0.10 * fs)
+        post_samples = int(0.50 * fs)
+
+        beat_matrix = []
+        for peak in s1_anchors:
+            if peak - pre_samples < 0 or peak + post_samples >= len(env):
+                continue
+            
+            # Correlating the Hilbert Envelope bypasses high-frequency phase shift errors
+            beat_segment = env[peak - pre_samples : peak + post_samples]
+            beat_matrix.append(beat_segment)
+            
+        beat_matrix = np.array(beat_matrix)
+        
+        if len(beat_matrix) < 3:
+            return 0.0
+            
+        local_template = np.median(beat_matrix, axis=0)
+        
+        # Individual Beat Correlation
+        correlations = []
+        for beat in beat_matrix:
+            r, _ = pearsonr(beat, local_template)
+            
+            if np.isnan(r): r = 0.0
+            # Clip negative correlations to 0
+            correlations.append(max(0.0, r))
+
+        return float(np.mean(correlations))
+    
+    def extract_fixed_window_fiducials(self, preprocessed, window_start: int, window_end: int):
+        """
+        Extracts heart rate from stethoscope within the given window using both
+        Power Spectral Density (PSD) and Inter-Beat Interval (IBI) peak detection.
+        
+        param self: stethoscope object
+        param preprocessed: np.ndarray, preprocessed stethoscope signal data
+        param window_start: int, index of window start
+        param window_end: int, index of window end
+        """
+        from scipy.signal import welch, find_peaks, hilbert
+        import numpy as np
+
+        sig = preprocessed[window_start:window_end]
+        fs = self.sampling_rate
+        
+        # Failsafe for empty windows
+        if len(sig) == 0:
+            return {f"{self.name}_HR": np.nan}
+        
+        # Generate the Envelope
+        env = np.abs(hilbert(sig))
+        win_len = int(0.2 * fs)
+        smoothed_env = np.convolve(env, np.ones(win_len)/win_len, mode='same')
+        
+        # Locate the center of each fused heartbeat
+        min_peak_dist = int(0.4 * fs)
+        centers, _ = find_peaks(smoothed_env, distance=min_peak_dist, prominence=0.2 * np.mean(smoothed_env))
+        
+        s1_anchors = []
+        for c in centers:
+            search_start = max(0, c - int(0.25 * fs))
+            search_end = min(len(env), c + int(0.20 * fs)) 
+            local_env = env[search_start:search_end]
+            
+            if len(local_env) == 0:
+                continue
+                
+            local_peaks, _ = find_peaks(local_env, distance=int(0.08 * fs))
+            valid_peaks = [p for p in local_peaks if local_env[p] > 0.25 * np.max(local_env)]
+            
+            if len(valid_peaks) > 0:
+                s1_anchors.append(search_start + valid_peaks[0])
+            else:
+                s1_anchors.append(search_start + np.argmax(local_env))
+                
+        # Calculate HR from IBI
+        if len(s1_anchors) > 1:
+            ibis_in_samples = np.diff(s1_anchors)
+            median_ibi_samples = np.median(ibis_in_samples) 
+            hr_bpm_ibi = float(60.0 * fs / median_ibi_samples)
+        else:
+            hr_bpm_ibi = np.nan
+
+        return {
+            f"{self.name}_HR": hr_bpm_ibi
+        }

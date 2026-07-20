@@ -9,5 +9,5 @@ from .session_processors import Session
 # Optional: Define what is exported when someone does 'from PulseKit import *'
 __all__ = [
     "ECG", "PPG", "Stethoscope", "Earbud", "Accelerometer", 
-    "RespirationBelt", "BP", "Hemodynamics", "PTT", "PWA", "Dataset"
+    "RespirationBelt", "BP", "Hemodynamics", "PTT", "PWA", "Dataset", "Session"
 ]

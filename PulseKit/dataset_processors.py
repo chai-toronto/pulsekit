@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import numpy as np
 import json
+import re
 
 
 class Dataset:
@@ -26,10 +27,37 @@ class Dataset:
         self.signals = signals
         self.data_directory = data_directory
         self.windowing_type = None  # 'cardiac_cycles' or 'fixed_windows'
-
+        self.windowing_params = {}
+        self.segments_filename = "segments.csv"
         self.sessions = SessionsWrapper({
             sid: Session(sid, signals, data_directory) for sid in sessionIds
         })  
+    
+    # naming segments file based on windowing type and parameters to avoid overwriting
+    def _sanitize_token(self, value) -> str:
+        token = str(value).strip().lower()
+        token = token.replace(" ", "_")
+        token = re.sub(r"[^a-z0-9._-]+", "_", token)
+        token = re.sub(r"-{2,}", "_", token).strip("_")
+        return token or "none"
+
+    def _set_windowing_config(self, windowing_type: str, params: dict) -> None:
+        self.windowing_type = windowing_type
+        self.windowing_params = params or {}
+        self.segments_filename = self._build_segments_filename()
+        print(f"Using segments file: {self.segments_filename}")
+
+    def _build_segments_filename(self) -> str:
+        if self.windowing_type is None:
+            return "segments.csv"
+
+        parts = ["segments", self._sanitize_token(self.windowing_type)]
+        for k, v in sorted(self.windowing_params.items()):
+            key = self._sanitize_token(k)
+            val = self._sanitize_token(v)
+            parts.append(f"{key}_{val}")
+
+        return "_".join(parts) + ".csv"
     
     # Run one of the following windowing methods before processing signals (cardiac cycles or fixed windows)
 
@@ -42,7 +70,11 @@ class Dataset:
         :param args: Arguments to be passed to session objects
         :param kwargs: Keyword arguments to be passed to session objects
         '''    
-        self.windowing_type = 'cardiac_cycles'
+        params = {}
+        if args:
+            params["args"] = "-".join(str(a) for a in args)
+        params.update(kwargs)
+        self._set_windowing_config("cardiac_cycles", params)
         for session in self.sessions.values():
             try:
                 session.detect_cycles(*args, **kwargs)
@@ -58,7 +90,9 @@ class Dataset:
         :param length: int, length of each window in seconds
         :param kwargs: Additional keyword arguments to be passed to session objects
         """
-        self.windowing_type = 'fixed_windows'
+        params = {"length": length}
+        params.update(kwargs)
+        self._set_windowing_config("fixed_windows", params)
         for session in self.sessions.values():
             try:
                 session.get_fixed_windows(length=length, **kwargs)
@@ -113,11 +147,11 @@ class Dataset:
             # Save results back to session fiducials CSV   
             if session_results:
                 new_df = pd.DataFrame(session_results)
-                session.save_fiducials(new_df)
+                session.save_fiducials(new_df, segments_filename=self.segments_filename)
             
             session.unload_session()
 
-    def compute_features(self, features: list[Feature], targets: list[str] = None, output_name: str = "features", activity_labels: bool = False) -> None:
+    def compute_features(self, features: list[Feature], targets: list[str] = None, output_name: str = "features", activity_labels: bool = False, segments_filename: str = None) -> None:
         '''
         Computes features for all sessions and optionally filters based on target signal quality.
         
@@ -135,9 +169,10 @@ class Dataset:
         '''
         all_session_features = []
         targets = targets or []
+        segments_filename = segments_filename or self.segments_filename
 
         for session in self.sessions.values():
-            segments_path = os.path.join(self.data_directory, session.session_id, "segments.csv")
+            segments_path = os.path.join(self.data_directory, session.session_id, segments_filename)
             
             if not os.path.exists(segments_path):
                 print(f"Missing file at {segments_path}, skipping session {session.session_id}")

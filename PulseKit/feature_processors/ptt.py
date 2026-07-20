@@ -11,7 +11,7 @@ class PTT(Feature):
     POSSIBLE_SIGNALS = PROXIMAL_SIGNALS + DISTAL_SIGNALS
     WINDOWING_TYPE = "cardiac_cycles"
 
-    PHYSIOLOGICAL_BOUNDS = { # default values right now
+    PHYSIOLOGICAL_BOUNDS = {
         ("ECG", "finger"): (0, 500),
         ("ECG", "ear"): (0, 500),
         ("ECG", "earbud"): (0, 500),
