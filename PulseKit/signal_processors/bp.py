@@ -20,6 +20,7 @@ class BP(PhysiologicalSignal):
         super().__init__(name, sampling_rate, session_dir)
         self.artifact_mask = None 
         self.artifact_integral = None
+        self.cnap_annotations = None
 
     def preprocess(self) -> np.ndarray:
         """
@@ -54,9 +55,12 @@ class BP(PhysiologicalSignal):
 
     def _load_external_nibp_mask(self) -> np.ndarray:
         """
-        Loads the consolidated NIBP mask (CNAP_Annotations.npy) from the session directory.
-        If the file is missing, returns an all-True (all good) mask of the same length.
+        Uses the session-cached WFDB CNAP annotation channel, falling back to the
+        legacy NumPy sidecar when processing an older dataset layout.
         """
+        if self.cnap_annotations is not None:
+            return np.asarray(self.cnap_annotations, dtype=bool)
+
         mask_path = os.path.join(self.session_dir, "CNAP_Annotations.npy")
         
         if os.path.exists(mask_path):

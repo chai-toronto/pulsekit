@@ -21,17 +21,80 @@ class Dataset:
     :param windowing_type: str or None, type of windowing used ('cardiac_cycles' or 'fixed_windows')
     :param sessions: wrapped dictionary of Session objects to allow dot notation access
     '''
-    def __init__(self, datasetName, sessionIds, signals, data_directory):
+    def __init__(self, datasetName, sessionIds=None, signals=None, data_directory=None):
+        if data_directory is None:
+            raise ValueError("data_directory must point to the WFDB dataset root or records directory.")
+        if signals is None:
+            raise ValueError("signals must be provided, even when session IDs are discovered automatically.")
+
         self.datasetName = datasetName
-        self.sessionIds = sessionIds
+        self.data_directory = os.path.abspath(data_directory)
+        self.sessionIds = (
+            list(sessionIds) if sessionIds is not None
+            else self._discover_session_ids(self.data_directory)
+        )
         self.signals = signals
-        self.data_directory = data_directory
         self.windowing_type = None  # 'cardiac_cycles' or 'fixed_windows'
         self.windowing_params = {}
         self.segments_filename = "segments.csv"
         self.sessions = SessionsWrapper({
-            sid: Session(sid, signals, data_directory) for sid in sessionIds
+            sid: Session(sid, signals, self.data_directory) for sid in self.sessionIds
         })  
+
+    @staticmethod
+    def _discover_session_ids(data_directory: str) -> list[str]:
+        """Read all WFDB record IDs from the dataset's RECORDS index."""
+        records_directory = os.path.join(data_directory, "data")
+        if not os.path.isdir(records_directory):
+            records_directory = data_directory
+
+        records_file = next(
+            (
+                candidate for candidate in (
+                    os.path.join(data_directory, "RECORDS"),
+                    os.path.join(records_directory, "RECORDS"),
+                )
+                if os.path.isfile(candidate)
+            ),
+            None,
+        )
+        if records_file is None:
+            raise FileNotFoundError(
+                f"Could not find a WFDB RECORDS index under {data_directory!r}. "
+                "Pass sessionIds explicitly or provide the dataset root containing RECORDS."
+            )
+
+        session_ids = []
+        seen = set()
+        missing_ids = []
+        with open(records_file, "r", encoding="utf-8") as records:
+            for line in records:
+                record_entry = line.strip().replace("\\", "/")
+                if not record_entry or record_entry.startswith("#"):
+                    continue
+                record_path = os.path.join(records_directory, record_entry)
+                record_id = os.path.splitext(os.path.basename(record_entry))[0]
+                header_candidates = (
+                    os.path.splitext(record_path)[0] + ".hea",
+                    os.path.join(records_directory, record_id, record_id + ".hea"),
+                    os.path.join(records_directory, record_id + ".hea"),
+                )
+                if not any(os.path.isfile(path) for path in header_candidates):
+                    missing_ids.append(record_id)
+                    continue
+                if record_id not in seen:
+                    session_ids.append(record_id)
+                    seen.add(record_id)
+
+        if missing_ids:
+            print(
+                f"Skipping {len(missing_ids)} RECORDS entries without a local WFDB header "
+                f"(for example: {', '.join(missing_ids[:5])})."
+            )
+
+        if not session_ids:
+            raise ValueError(f"No record IDs were found in WFDB index {records_file!r}.")
+        return session_ids
     
     # naming segments file based on windowing type and parameters to avoid overwriting
     def _sanitize_token(self, value) -> str:
@@ -80,6 +143,8 @@ class Dataset:
                 session.detect_cycles(*args, **kwargs)
             except Exception as e:
                 print(f"Session {session.session_id}: Skipping cycle detection. Reason: {e}")
+            finally:
+                session.unload_session()
     
     def get_fixed_windows(self, length=10, **kwargs) -> None:
         """
@@ -117,6 +182,7 @@ class Dataset:
                 continue
             
             print(f"Processing session {session.session_id}...")
+            session.load_session()
 
             # create a list to hold results for all cycles in this session
             session_results = []
@@ -170,9 +236,10 @@ class Dataset:
         all_session_features = []
         targets = targets or []
         segments_filename = segments_filename or self.segments_filename
+        activity_label_map = self._get_activity_labels() if activity_labels else {}
 
         for session in self.sessions.values():
-            segments_path = os.path.join(self.data_directory, session.session_id, segments_filename)
+            segments_path = session.get_segments_path(segments_filename)
             
             if not os.path.exists(segments_path):
                 print(f"Missing file at {segments_path}, skipping session {session.session_id}")
@@ -185,13 +252,8 @@ class Dataset:
                 if f"{t}_quality" not in fiducial_df.columns:
                     print(f"WARNING: Target quality '{t}_quality' not found in {session.session_id}.")
             
-            mask = None
-            if activity_labels:
-                mask_path = os.path.join(self.data_directory, session.session_id, "Activity_Annotations.npy")
-                if os.path.exists(mask_path):
-                    mask = np.load(mask_path)
-
             session.load_session() 
+            mask = session.get_channel("Activity_Annotations") if activity_labels else None
 
             for i, row_data in fiducial_df.iterrows():
                 row = {
@@ -224,14 +286,6 @@ class Dataset:
                                 row[name_feat] = np.nan
 
                 if activity_labels:
-                    labels = {
-                        0: "rest",
-                        1: "breath_hold",
-                        2: "valsalva",
-                        3: "exercise",
-                        4: "cold_pressor",
-                        9: "setup"
-                    }
                     if mask is not None:
                         start_idx = int(row_data.get('start', 0)) 
                         end_idx = int(row_data.get('end', len(mask))) 
@@ -241,14 +295,22 @@ class Dataset:
                         end_idx = min(len(mask), end_idx)
                         
                         if start_idx < end_idx:
-                            beat_mask = mask[start_idx:end_idx]
-                            majority_code = np.bincount(beat_mask).argmax()
-                            if majority_code == 99: print(f"Window {row['window_id']} in session {session.session_id} labeled as 'during_exercise' due to majority code 99 in activity mask.")
-                            row['activity'] = labels.get(majority_code, "unknown")
+                            beat_mask = np.asarray(mask[start_idx:end_idx])
+                            beat_mask = beat_mask[np.isfinite(beat_mask)]
+                            if beat_mask.size == 0:
+                                row['activity'] = "invalid_interval"
+                                all_session_features.append(row)
+                                continue
+                            beat_mask = np.rint(beat_mask).astype(np.int64)
+                            activity_codes, activity_counts = np.unique(
+                                beat_mask, return_counts=True
+                            )
+                            majority_code = int(activity_codes[activity_counts.argmax()])
+                            row['activity'] = activity_label_map.get(majority_code, "unknown")
                         else:
                             row['activity'] = "invalid_interval"
                     else:
-                        row['activity'] = np.NaN
+                        row['activity'] = np.nan
 
                 all_session_features.append(row)
 
@@ -263,6 +325,28 @@ class Dataset:
         save_loc = os.path.join(self.data_directory, f"{output_name}.csv")
         feature_df.to_csv(save_loc, index=False)
         print(f"Saved to: {save_loc}")
+
+    def _get_activity_labels(self) -> dict:
+        """Load code-to-name mappings from the dataset metadata when available."""
+        labels_path = os.path.join(self.data_directory, "activity_labels.csv")
+        if os.path.exists(labels_path):
+            labels_df = pd.read_csv(labels_path)
+            if {"activity_number", "activity_name"}.issubset(labels_df.columns):
+                return {
+                    int(code): str(name).strip()
+                    for code, name in zip(
+                        labels_df["activity_number"], labels_df["activity_name"]
+                    )
+                    if pd.notna(code) and pd.notna(name)
+                }
+        return {
+            0: "rest",
+            1: "breath_hold",
+            2: "valsalva",
+            3: "exercise",
+            4: "cold_pressor",
+            9: "setup",
+        }
 
     def set_custom_quality_check(self, signal_name: str, func: callable):
         """

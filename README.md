@@ -8,7 +8,7 @@ The PhysiologicalSignal subclasses (PhysiologicalSignal, ECG, PPG, Earbud, Steth
 
 ## **Initialization**
 
-To begin, define the signals you want to process and point the Dataset manager to your data directory. PulseKit uses lazy loading: it will scan for files and create the session structure immediately, but it won't load heavy raw data into memory until you explicitly request it.
+To begin, define the signals you want to process and point the Dataset manager to the Auricle dataset root (the folder containing `demographics.csv` and `data/`). PulseKit uses WFDB session-level lazy loading: it reads each record's header when creating sessions, then loads the requested channels together from that session's `.dat` record only when processing starts. Install the dependencies with `pip install -r requirements.txt`.
 
 ```Python
 from PulseKit import *
@@ -36,13 +36,21 @@ signals=[
 ]
 
 # 2. Create the Dataset Manager
-# This will automatically filter out signals that are missing from specific session folders
+# Omit sessionIds to include every available record listed in RECORDS.
+# Provide sessionIds to restrict processing to a selected subset.
 test_dataset = Dataset(
     datasetName="MyBPProject",
-    sessionIds=["41", "41_2"], # The specific sessions to include
     signals=signals,
     data_directory="path/to/Auricle_data"
 )
+
+# Optional subset:
+# test_dataset = Dataset(
+#     datasetName="MyBPProject",
+#     sessionIds=["HC_41_1", "HC_41_2"],
+#     signals=signals,
+#     data_directory="path/to/Auricle_data"
+# )
 
 # 3. Define the windows (Cardiac Cycles or Fixed Length)
 # This must be run before processing signals
