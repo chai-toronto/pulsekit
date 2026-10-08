@@ -4,3 +4,4 @@ __pycache__
 *.pyc
 .venv
 debug_data/
+wfdb_data
