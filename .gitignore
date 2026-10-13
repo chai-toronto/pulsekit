@@ -1,7 +1,6 @@
-test_data
 __pycache__
 .DS_Store
 *.pyc
 .venv
-debug_data/
-wfdb_data
+auricle
+auricle_csv_backup

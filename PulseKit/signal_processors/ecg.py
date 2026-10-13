@@ -157,8 +157,7 @@ class ECG(PhysiologicalSignal):
         ibi_intervals = np.diff(true_peaks) / self.sampling_rate
 
         if len(ibi_intervals) > 0:
-            # Calculate average IBI and convert to BPM
-            avg_ibi = np.mean(ibi_intervals)
+            avg_ibi = np.median(ibi_intervals)
             hr_bpm_ibi = 60.0 / avg_ibi
         else:
             hr_bpm_ibi = np.nan

@@ -136,23 +136,26 @@ class Accelerometer(PhysiologicalSignal):
         sig = preprocessed[window_start:window_end]
         fs = self.sampling_rate
         
-        # Failsafe for empty windows
         if len(sig) == 0:
             return {f"{self.name}_HR": np.nan}
 
-        
         env = np.abs(hilbert(sig))
+        
+        # 150ms moving avg to fuse the SCG complex
         win_len = int(0.15 * fs)
         smoothed_env = np.convolve(env, np.ones(win_len)/win_len, mode='same')
         
+        # 1.5s moving avg for baseline shifts
         roll_len = int(fs * 1.5)
         local_mean = np.convolve(smoothed_env, np.ones(roll_len)/roll_len, mode='same')
         
+        # Threshold: 20% above local mean
         dynamic_threshold = local_mean * 1.2 + 1e-4
-        min_peak_dist = int(0.4 * fs) # Assumes max HR ~150 BPM
+        min_peak_dist = int(0.4 * fs) # Max HR ~150 BPM
         
         complex_centers, _ = find_peaks(smoothed_env, height=dynamic_threshold, distance=min_peak_dist)
         
+        # Extract true AO peaks
         true_ao_peaks = []
         search_radius = int(0.15 * fs)
         
@@ -171,15 +174,30 @@ class Accelerometer(PhysiologicalSignal):
             pos_peaks, _ = find_peaks(local_region, distance=int(0.05 * fs), prominence=0.2 * local_ptp)
             
             if len(pos_peaks) > 0:
-                # Anchor on the highest prominent peak in the local burst
                 ao_idx = pos_peaks[np.argmax(local_region[pos_peaks])]
                 true_ao_peaks.append(search_start + ao_idx)
             
         # Calculate HR from IBI
-        if len(true_ao_peaks) > 1:
+        if len(true_ao_peaks) >= 4:
             ibis_in_samples = np.diff(true_ao_peaks)
-            median_ibi_samples = np.median(ibis_in_samples)
-            hr_bpm_ibi = float(60.0 * fs / median_ibi_samples)
+            ibis_in_seconds = ibis_in_samples / fs
+            
+            # Filter valid intervals (40-180 BPM)
+            min_ibi = 60.0 / 180.0
+            max_ibi = 60.0 / 40.0
+            valid_ibis = [ibi for ibi in ibis_in_seconds if min_ibi <= ibi <= max_ibi]
+            
+            if len(valid_ibis) >= 3:
+                # Rhythm regularity check (CV < 15%)
+                cv = np.std(valid_ibis) / np.mean(valid_ibis)
+                
+                if cv < 0.15: 
+                    median_ibi = np.median(valid_ibis)
+                    hr_bpm_ibi = float(60.0 / median_ibi)
+                else:
+                    hr_bpm_ibi = np.nan 
+            else:
+                hr_bpm_ibi = np.nan 
         else:
             hr_bpm_ibi = np.nan
 

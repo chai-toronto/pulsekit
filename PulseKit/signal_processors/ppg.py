@@ -213,33 +213,37 @@ class PPG(PhysiologicalSignal):
         """
 
         sig = preprocessed[window_start:window_end]
+        fs = self.sampling_rate
         
         # Failsafe for empty windows
         if len(sig) == 0:
-            return {f"{self.name}_HR": np.nan}
+            return {f"{self.name}_HR_PSD": np.nan, f"{self.name}_HR_IBI": np.nan}
             
-        # Calculate Power Spectral Density
-        freqs, psd = welch(sig, fs=self.sampling_rate, nperseg=len(sig))
+        sig_diff = np.diff(sig)
+        max_diff = np.max(sig_diff) if len(sig_diff) > 0 else 0
         
-        # Define physiological human heartbeat range in Hz
-        # 40 BPM = 0.67 Hz | 220 BPM = 3.67 Hz
-        min_hz = 40.0 / 60.0
-        max_hz = 180.0 / 60.0
-        
-        # Mask the frequencies to only our region of interest
-        valid_idx = np.where((freqs >= min_hz) & (freqs <= max_hz))[0]
-        
-        if len(valid_idx) == 0:
-            return {f"{self.name}_HR": np.nan}
+        if max_diff <= 0:
+            hr_bpm_ibi = np.nan
+        else:
+            height_req = max_diff * 0.2
+            min_peak_dist = int(0.4 * fs)  # Assumes max HR ~150 BPM
             
-        # Extract the relevant frequencies and their corresponding power
-        valid_freqs = freqs[valid_idx]
-        valid_psd = psd[valid_idx]
-        
-        # Find the frequency bin with the highest energy
-        peak_freq = valid_freqs[np.argmax(valid_psd)]
-        
-        # Convert Hz back to Beats Per Minute (BPM)
-        hr_bpm = float(peak_freq * 60.0)
+            diff_peaks, _ = find_peaks(sig_diff, height=height_req, distance=min_peak_dist)
+            
+            # Trace backward from each steepest slope to find the systolic foot
+            feet = []
+            for dp in diff_peaks:
+                foot_idx = dp
+                search_limit = max(0, dp - int(fs * 0.3))
+                while foot_idx > search_limit and sig_diff[foot_idx] > 0:
+                    foot_idx -= 1
+                feet.append(foot_idx)
+                
+            if len(feet) > 1:
+                ibis_in_samples = np.diff(feet)
+                median_ibi_samples = np.median(ibis_in_samples)
+                hr_bpm_ibi = float(60.0 * fs / median_ibi_samples)
+            else:
+                hr_bpm_ibi = np.nan
 
-        return {f"{self.name}_HR": hr_bpm}
+        return {f"{self.name}_HR": hr_bpm_ibi}

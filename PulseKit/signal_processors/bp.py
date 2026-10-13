@@ -30,7 +30,7 @@ class BP(PhysiologicalSignal):
         raw_data = self.data
 
         # flag when 150 exactly for 2 or more beats in a row, as this is physiologically unlikely and likely an artifact
-        flatline_mask = (raw_data == 150)
+        flatline_mask = np.isclose(raw_data, 150, atol=0.5)
         flatline_mask = ndimage.label(flatline_mask)[0] > 1
         
         # 1. Load the pre-calculated NIBP mask from the session folder
