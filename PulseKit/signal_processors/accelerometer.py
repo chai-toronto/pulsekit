@@ -122,8 +122,7 @@ class Accelerometer(PhysiologicalSignal):
     
     def extract_fixed_window_fiducials(self, preprocessed, window_start: int, window_end: int):
         """
-        Extracts heart rate from accelerometer within the given window using both
-        Power Spectral Density (PSD) and Inter-Beat Interval (IBI) peak detection.
+        Extracts heart rate from accelerometer within the given window.
         
         param self: accelerometer object
         param preprocessed: np.ndarray, preprocessed accelerometer signal data
@@ -151,7 +150,7 @@ class Accelerometer(PhysiologicalSignal):
         
         # Threshold: 20% above local mean
         dynamic_threshold = local_mean * 1.2 + 1e-4
-        min_peak_dist = int(0.4 * fs) # Max HR ~150 BPM
+        min_peak_dist = int(0.4 * fs)
         
         complex_centers, _ = find_peaks(smoothed_env, height=dynamic_threshold, distance=min_peak_dist)
         
@@ -182,17 +181,12 @@ class Accelerometer(PhysiologicalSignal):
             ibis_in_samples = np.diff(true_ao_peaks)
             ibis_in_seconds = ibis_in_samples / fs
             
-            # Filter valid intervals (40-180 BPM)
-            min_ibi = 60.0 / 180.0
-            max_ibi = 60.0 / 40.0
-            valid_ibis = [ibi for ibi in ibis_in_seconds if min_ibi <= ibi <= max_ibi]
-            
-            if len(valid_ibis) >= 3:
+            if len(ibis_in_seconds) >= 3:
                 # Rhythm regularity check (CV < 15%)
-                cv = np.std(valid_ibis) / np.mean(valid_ibis)
+                cv = np.std(ibis_in_seconds) / np.mean(ibis_in_seconds)
                 
-                if cv < 0.15: 
-                    median_ibi = np.median(valid_ibis)
+                if cv < 0.4: 
+                    median_ibi = np.median(ibis_in_seconds)
                     hr_bpm_ibi = float(60.0 / median_ibi)
                 else:
                     hr_bpm_ibi = np.nan 

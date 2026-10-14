@@ -1,9 +1,0 @@
-signal,r,n,label
-Accelerometer_Z,0.7207481104834266,7885,Accelerometer Z-axis (SCG)
-Digital_Stethoscope,0.930278530218407,6102,Digital Stethoscope (PCG)
-Earbud_Right,0.9409908419227624,7985,Right Earbud Audio
-PPG_Ear,0.9446146523856593,12794,Ear PPG
-Earbud_Left,0.9449758390835798,7735,Left Earbud Audio
-ECG,0.9659946040380788,14475,ECG
-Earbud_Best,0.9772965195488313,9076,Best Earbud Audio
-PPG_Finger,0.9778597170300198,14462,Finger PPG
